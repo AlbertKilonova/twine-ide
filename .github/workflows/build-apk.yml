@@ -3,16 +3,18 @@ name: Build Android APK
 on:
   push:
     tags:
-      - 'v*'
+      - "v*"
   workflow_dispatch:
     inputs:
       version:
-        description: 'Version name (e.g. v0.0.1)'
+        description: "Version name (e.g. v0.0.1)"
         required: true
 
 jobs:
   build:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
 
     env:
       VERSION: ${{ github.event.inputs.version || github.ref_name }}
