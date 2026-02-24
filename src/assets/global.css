@@ -1,0 +1,30 @@
+@import './variables.css';
+
+html, body, #app {
+  margin: 0; padding: 0;
+  height: 100vh; width: 100vw;
+  overflow: hidden;
+  background-color: var(--bg-dark-primary) !important;
+}
+
+/* 侧边栏滑动手感魔法 */
+.side-slide-enter-active,
+.side-slide-leave-active {
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.side-slide-enter-from,
+.side-slide-leave-to {
+  width: 0 !important;
+  opacity: 0;
+}
+
+/* 深度黑化 Vant */
+.van-field, .van-cell, .van-field__control {
+  background-color: transparent !important;
+  color: var(--text-main) !important;
+}
+
+.van-field__control {
+  -webkit-text-fill-color: var(--text-main) !important;
+}
