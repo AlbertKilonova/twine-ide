@@ -26,3 +26,8 @@ ios
 *.njsproj
 *.sln
 *.sw?
+
+# Keystore
+*.keystore
+*.jks
+.keystore.env

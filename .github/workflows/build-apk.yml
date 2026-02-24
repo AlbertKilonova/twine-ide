@@ -50,12 +50,36 @@ jobs:
       - name: Sync Capacitor
         run: npx cap sync android
 
+      - name: Set version
+        run: |
+          VERSION_NAME="${VERSION#v}"
+          VERSION_CODE=$(echo "$VERSION_NAME" | awk -F. '{ printf "%d", $1*10000+$2*100+$3 }')
+          sed -i "s/versionName \".*\"/versionName \"$VERSION_NAME\"/" android/app/build.gradle
+          sed -i "s/versionCode [0-9]*/versionCode $VERSION_CODE/" android/app/build.gradle
+          echo "versionName=$VERSION_NAME versionCode=$VERSION_CODE"
+
+      - name: Decode keystore
+        run: echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 -d > android/app/twine-ide.keystore
+
       - name: Build APK
         working-directory: android
         run: ./gradlew assembleRelease
+        env:
+          KEYSTORE_FILE: twine-ide.keystore
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
 
-      - name: Rename APK
-        run: cp android/app/build/outputs/apk/release/app-release-unsigned.apk twine-ide-${{ env.VERSION }}.apk
+      - name: Sign APK
+        run: |
+          BUILD_TOOLS=$ANDROID_HOME/build-tools/$(ls $ANDROID_HOME/build-tools/ | tail -1)
+          $BUILD_TOOLS/apksigner sign \
+            --ks android/app/twine-ide.keystore \
+            --ks-key-alias ${{ secrets.KEY_ALIAS }} \
+            --ks-pass pass:${{ secrets.KEYSTORE_PASSWORD }} \
+            --key-pass pass:${{ secrets.KEY_PASSWORD }} \
+            --out twine-ide-${{ env.VERSION }}.apk \
+            android/app/build/outputs/apk/release/app-release-unsigned.apk
 
       - name: Create Release and Upload APK
         uses: softprops/action-gh-release@v2
