@@ -201,11 +201,12 @@ const eventHandlers = {
   display: flex; flex-direction: column;
 }
 .map-toolbar {
-  height: 40px; background: #2d2d2d;
+  height: 40px; min-height: 40px; background: #2d2d2d;
   display: flex; justify-content: space-between; align-items: center;
-  padding: 0 15px; border-bottom: 1px solid #333;
+  padding: 0 10px; border-bottom: 1px solid #333;
+  overflow: hidden; white-space: nowrap;
 }
-.map-title { font-size: 13px; color: #ccc; display: flex; align-items: center; gap: 12px; }
+.map-title { font-size: 13px; color: #ccc; display: flex; align-items: center; gap: 8px; overflow: hidden; flex: 1; min-width: 0; }
 .grid-control { display: flex; align-items: center; border-left: 1px solid #444; padding-left: 12px; }
 .canvas-wrapper { flex: 1; background-color: #181818; position: relative; overflow: hidden; }
 .canvas-wrapper.show-grid {
@@ -213,9 +214,10 @@ const eventHandlers = {
   background-size: 40px 40px;
 }
 .map-footer {
-  height: 30px; background: #252526; border-top: 1px solid #333;
+  height: 30px; min-height: 30px; background: #252526; border-top: 1px solid #333;
   color: #888; font-size: 11px;
   display: flex; align-items: center; justify-content: center; gap: 15px;
+  overflow: hidden; white-space: nowrap;
 }
 .close-btn { background: transparent !important; border: none !important; color: #888 !important; }
 .node-label { pointer-events: none; user-select: none; }

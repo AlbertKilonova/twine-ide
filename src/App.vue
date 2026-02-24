@@ -8,7 +8,7 @@
     />
 
     <transition name="side-slide">
-      <aside class="side-nav-box" v-show="isSidebarOpen">
+      <aside class="side-nav-box" v-show="isSidebarOpen && viewMode !== 'visual'">
         <SideBarList 
           v-if="viewMode === 'files' || viewMode === 'stories'"
           :title="viewMode === 'files' ? '段落' : '故事'"
@@ -217,8 +217,13 @@ const downloadBlob = (blob, name) => {
 };
 
 const switchMode = (mode) => {
-  if (viewMode.value === mode) isSidebarOpen.value = !isSidebarOpen.value;
-  else { viewMode.value = mode; isSidebarOpen.value = true; }
+  if (mode === 'visual') {
+    viewMode.value = viewMode.value === 'visual' ? 'files' : 'visual';
+    isSidebarOpen.value = viewMode.value !== 'visual';
+  } else {
+    if (viewMode.value === mode) isSidebarOpen.value = !isSidebarOpen.value;
+    else { viewMode.value = mode; isSidebarOpen.value = true; }
+  }
 };
 
 const handleSelect = (id) => {
@@ -407,7 +412,7 @@ const preview = () => showToast('还在研发中...');
 </script>
 
 <style scoped>
-.vscode-layout { display: flex; height: 100vh; width: 100vw; overflow: hidden; background: #1e1e1e; color: #ccc; }
+.vscode-layout { display: flex; height: 100vh; width: 100vw; overflow: hidden; background: #1e1e1e; color: #ccc; padding-top: env(safe-area-inset-top); box-sizing: border-box; }
 .side-nav-box { background: #252526; border-right: 1px solid #333; flex-shrink: 0; overflow: hidden; width: 220px; }
 .editor-main { flex: 1; display: flex; flex-direction: column; min-width: 0; background: #1e1e1e; position: relative; }
 
