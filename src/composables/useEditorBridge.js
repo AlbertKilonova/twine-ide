@@ -1,63 +1,50 @@
 import { computed } from 'vue';
 
-export function useEditorBridge(activeFile, handleUpdateItem) {
+export function useEditorBridge(activeFile, handleUpdateItem, unescapeTwee, escapeTwee) {
   
-  // 1. 同步标题和数据 (syncData)
   const syncData = async () => {
     if (!activeFile.value) return;
     const lines = activeFile.value.content.split('\n');
     const firstLine = lines[0];
     
-    // 匹配 :: 后的标题部分，不包括 [标签] 和 {元数据}
+    // 提取标题并进行反转义处理
     const match = firstLine.match(/^::\s*([^\[\{]+)/);
     if (match) {
-      activeFile.value.name = match[1].trim();
+      activeFile.value.name = unescapeTwee(match[1].trim(), true);
     }
     await handleUpdateItem(activeFile.value);
   };
 
-  // 2. 获取当前片段的标签
   const currentPassageTags = computed(() => {
     if (!activeFile.value) return [];
     const firstLine = activeFile.value.content.split('\n')[0];
     const match = firstLine.match(/\[(.*?)\]/);
-    return match ? match[1].split(' ').filter(t => t) : [];
+    return match ? match[1].split(/\s+/).filter(t => t) : [];
   });
 
-  // 3. 更新头部整行内容 (updateHeader)
   const updateHeader = (newTags) => {
     if (!activeFile.value) return;
     const lines = activeFile.value.content.split('\n');
     const tagStr = newTags.length > 0 ? ` [${newTags.join(' ')}]` : '';
     
-    // 提取旧的标题部分和元数据部分
-    const titlePart = lines[0].match(/^::\s*([^\[\{]+)/)?.[0].trimEnd() || ':: NewPassage';
-    const metaPart = lines[0].match(/\{.*\}$/)?.[0] || '';
+    // 仅保留标题和标签，彻底无视元数据
+    const titlePart = `:: ${escapeTwee(activeFile.value.name, true)}`;
+    lines[0] = `${titlePart}${tagStr}`.trim();
     
-    // 拼接成新的一行
-    lines[0] = `${titlePart}${tagStr} ${metaPart}`.replace(/\s+/g, ' ').trimEnd();
     activeFile.value.content = lines.join('\n');
+    activeFile.value.tags = newTags;
     syncData();
   };
 
-  // 4. 添加标签
   const addTag = (tagName) => {
     const val = tagName.trim();
     const current = currentPassageTags.value;
-    if (val && !current.includes(val)) {
-      updateHeader([...current, val]);
-    }
+    if (val && !current.includes(val)) updateHeader([...current, val]);
   };
 
-  // 5. 删除标签
   const removeTag = (tagName) => {
     updateHeader(currentPassageTags.value.filter(t => t !== tagName));
   };
 
-  return {
-    syncData,
-    currentPassageTags,
-    addTag,
-    removeTag
-  };
+  return { syncData, currentPassageTags, addTag, removeTag };
 }

@@ -12,7 +12,6 @@ export function useDatabase() {
         if (!db.value) db.value = await initDB()
         return db.value
     }
-
     const getAll = async (store) => {
         const _db = await ensureDB()
         return await _db.getAll(store)
