@@ -1,0 +1,162 @@
+.vscode-layout {
+    display: flex;
+    height: 100vh;
+    width: 100vw;
+    overflow: hidden;
+    background: #1e1e1e;
+    color: #ccc;
+    padding-top: env(safe-area-inset-top);
+    box-sizing: border-box;
+}
+
+.side-nav-box {
+    background: #252526;
+    border-right: 1px solid #333;
+    flex-shrink: 0;
+    overflow: hidden;
+    width: 220px;
+}
+
+.editor-main {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+    background: #1e1e1e;
+    position: relative;
+}
+
+/* 动画效果 */
+.side-slide-enter-active,
+.side-slide-leave-active {
+    transition: all 0.3s ease;
+}
+
+.side-slide-enter-from,
+.side-slide-leave-to {
+    width: 0;
+    opacity: 0;
+}
+
+.breadcrumb {
+    height: 35px;
+    border-bottom: 1px solid #333;
+    display: flex;
+    align-items: center;
+    padding: 0 10px;
+    font-size: 11px;
+    color: #888;
+}
+
+.tag-manager {
+    display: flex;
+    align-items: center;
+    padding: 5px 15px;
+    background: #252526;
+    gap: 10px;
+    border-bottom: 1px solid #333;
+}
+
+.tag-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 5px;
+    align-items: center;
+}
+
+.tag-input {
+    background: transparent;
+    border: none;
+    color: #888;
+    font-size: 12px;
+    width: 80px;
+    outline: none;
+}
+
+.editor-container {
+    flex: 1;
+    display: flex;
+    overflow: hidden;
+    position: relative;
+    font-family: 'Fira Code', monospace;
+}
+
+.line-numbers {
+    width: 45px;
+    background: #1e1e1e;
+    color: #858585;
+    text-align: right;
+    padding: 10px 10px 10px 0;
+    font-size: 12px;
+    line-height: 22px;
+    user-select: none;
+    border-right: 1px solid #333;
+}
+
+.editor-scroll-area {
+    flex: 1;
+    overflow: auto;
+    position: relative;
+}
+
+.editor-content-wrapper {
+    min-width: 100%;
+    display: inline-block;
+    position: relative;
+    min-height: 100%;
+}
+
+.real-textarea,
+.highlighter-layer {
+    width: 100%;
+    height: 100%;
+    padding: 10px;
+    border: none;
+    outline: none;
+    font-size: 14px;
+    line-height: 22px;
+    font-family: inherit;
+    white-space: pre;
+    overflow: hidden;
+    box-sizing: border-box;
+    display: block;
+}
+
+.real-textarea {
+    position: absolute;
+    top: 0;
+    left: 0;
+    background: transparent;
+    color: transparent;
+    caret-color: #fff;
+    z-index: 2;
+    resize: none;
+}
+
+.highlighter-layer {
+    z-index: 1;
+    pointer-events: none;
+    color: #ccc;
+    position: relative;
+}
+
+.header-highlight {
+    color: #569cd6;
+    font-weight: bold;
+    background: rgba(86, 156, 214, 0.2);
+    display: inline-block;
+    min-width: 100%;
+}
+
+.menu-toggle {
+    padding-right: 10px;
+    font-size: 16px;
+    cursor: pointer;
+}
+
+.path-text {
+    flex: 1;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}

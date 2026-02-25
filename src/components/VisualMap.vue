@@ -180,12 +180,14 @@ const eventHandlers = {
     }
   },
 
-  "node:dblclick": (event) => {
-    // 双击可能也是类似的结构，阿波做了兼容
-    const ids = Object.keys(event);
-    const nodeId = ids.length > 0 ? ids[0] : null;
-    if (nodeId) {
+  "node:dblclick": (params) => {
+    const nodeId = params.node || (Object.keys(params)[0]);
+    
+    if (nodeId && nodeId !== 'node') {
+      console.log("跳转到:", nodeId);
       emit('jump', nodeId);
+    } else {
+      console.error("错误:", nodeId);
     }
   }
 };

@@ -1,7 +1,7 @@
 import { openDB } from 'idb';
 
 export const initDB = async () => {
-  return openDB('story_editor', 1, {
+  return openDB('story_editor', 3, {
     upgrade(db, oldVersion, newVersion) {
       console.log(`检测到数据库升级：${oldVersion} -> ${newVersion}`);
       
