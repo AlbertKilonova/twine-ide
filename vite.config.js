@@ -56,4 +56,5 @@ export default defineConfig({
             }
         })
     ],
+    assetsInclude: ['**/*.svg', '**/LICENSE'],
 })
