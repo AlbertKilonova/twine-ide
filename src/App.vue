@@ -19,6 +19,11 @@
           @importStory="handleImportFile"
         />
         <ExportPanel v-if="viewMode === 'export'" :storyName="currentStoryName" :count="currentStoryFiles.length" @preview="preview" @doExport="handleExport" />
+        <ProjectSettings 
+          v-if="viewMode === 'project'" 
+          :story="currentStory" 
+          :count="currentStoryFiles.length"
+          @saveOnly="saveNow"  @update="handleRenameStory" />
       </aside>
     </transition>
 
@@ -66,6 +71,7 @@ import ExportPanel from './components/ExportPanel.vue';
 import EditorTools from './components/EditorTools.vue';
 import EditorView from './components/EditorView.vue';
 import VisualMap from './components/VisualMap.vue';
+import ProjectSettings from './components/ProjectSettings.vue';
 
 import { initDB } from './db/index';
 import { useStoryManager } from './composables/useStoryManager';
@@ -127,12 +133,19 @@ const handleRenameItem = (id) => storyMgr.handleRenameItem(id);
 const handleRenameStory = (id) => storyMgr.handleRenameStory(id);
 const handleDeleteItem = (id) => storyMgr.handleDeleteItem(id);
 const handleDeleteStory = (id) => storyMgr.handleDeleteStory(id);
-const handleSetStart = (id) => storyMgr.handleSetStart(id);
+const handleSetStart = (id) => storyMgr.handleSetStart(id, currentStoryId.value);
 const handleAddFolder = () => storyMgr.handleAddFolder(currentStory.value);
 const handleRenameFolder = (old) => storyMgr.handleRenameFolder(old, currentStory.value);
 const handleDeleteFolder = (n) => storyMgr.handleDeleteFolder(n, currentStory.value);
 const handleExport = (type) => fileActions.handleExport(type, currentStoryName.value, currentStory.value, currentStoryFiles.value);
 const handleImportFile = () => fileActions.handleImportFile((id) => { currentStoryId.value = id; viewMode.value = 'files'; });
+
+const handleBuild = () => {
+  showToast('编译器正在热锅中，请稍后喵 awa');
+};
+const handleTest = () => {
+  showToast('测试模块还没准备好波 xwx');
+};
 
 // --- 传送逻辑 ---
 const handleJump = (id) => {

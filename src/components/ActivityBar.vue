@@ -1,17 +1,21 @@
 <template>
   <div class="activity-bar">
     <div class="top-items">
-      <div :class="['nav-item', { active: activeMode === 'files' }]" @click="$emit('switch', 'files')">
-        <van-icon name="description" /><div class="active-indicator" v-show="activeMode === 'files'"></div>
-      </div>
       <div :class="['nav-item', { active: activeMode === 'stories' }]" @click="$emit('switch', 'stories')">
         <van-icon name="apps-o" /><div class="active-indicator" v-show="activeMode === 'stories'"></div>
+      </div>
+      <div :class="['nav-item', { active: activeMode === 'files' }]" @click="$emit('switch', 'files')">
+        <van-icon name="description" /><div class="active-indicator" v-show="activeMode === 'files'"></div>
       </div>
       <div :class="['nav-item', { active: activeMode === 'visual' }]" @click="$emit('switch', 'visual')">
         <van-icon name="cluster-o" /><div class="active-indicator" v-show="activeMode === 'visual'"></div>
       </div>
       <div :class="['nav-item', { active: activeMode === 'export' }]" @click="$emit('switch', 'export')">
         <van-icon name="share-o" /><div class="active-indicator" v-show="activeMode === 'export'"></div>
+      </div>
+      <div :class="['nav-item', { active: activeMode === 'project' }]" @click="$emit('switch', 'project')">
+        <van-icon name="setting-o" />
+        <div class="active-indicator" v-show="activeMode === 'project'"></div>
       </div>
     </div>
     <div class="bottom-items">
