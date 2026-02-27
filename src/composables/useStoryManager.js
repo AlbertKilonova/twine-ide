@@ -47,9 +47,11 @@ export function useStoryManager(stories, allPassages, currentStoryId, currentFil
       const s = { 
         id: Date.now().toString(), 
         name, 
+        extraMetadata: {},
         folders: [], 
         ifid: utils.generateUUID(), 
         format: "SugarCube", 
+        formatVersion: "2.37.3",
         zoom: 1 
       };
       stories.value.push(s);

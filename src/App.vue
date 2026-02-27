@@ -55,7 +55,7 @@
         v-model="activeFile.content"
         @input="onEditorInput"
       />
-      <van-empty v-else description="波波快选一个段落呀 awa" />
+      <van-empty v-else description="选择一个段落开始编辑" />
       
       <transition name="van-fade">
         <VisualMap v-if="viewMode === 'visual'" :passages="currentStoryFiles" :activeId="currentFileId" @close="viewMode = 'files'" @jump="handleJump" @updatePosition="handleUpdateItem" />
@@ -94,8 +94,8 @@ const editorViewRef = ref(null);
 let db = null;
 
 const dbIntf = { 
-  getAll: (s) => db?.getAll(s), // 别忘了给 formatManager 增加 getAll 访问权限喵！
-  putItem: (s, i) => db?.put(s, i), // 对应你之前的 putItem 呼叫
+  getAll: (s) => db?.getAll(s),
+  putItem: (s, i) => db?.put(s, i),
   put: (s, i) => {
     if (!db) { showToast('数据库还没准备好哦 awa'); return; }
     return db.put(s, i);
@@ -185,8 +185,6 @@ const handleJump = (id) => {
   
   // 3. 自动展开侧边栏（免得波波看不见列表）
   isSidebarOpen.value = true;
-  
-  showToast('传送成功！biu~');
 };
 
 // UI 映射
