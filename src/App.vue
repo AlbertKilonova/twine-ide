@@ -20,6 +20,7 @@
         />
         <ExportPanel v-if="viewMode === 'export'" :storyName="currentStoryName" :count="currentStoryFiles.length" @preview="preview" @doExport="handleExport" />
         <ProjectSettings 
+          :key="currentStory?.id"
           v-if="viewMode === 'project'" 
           :story="currentStory" 
           :count="currentStoryFiles.length"
@@ -127,7 +128,24 @@ const currentFolders = computed(() => currentStory.value?.folders || []);
 
 // 逻辑映射
 const handleUpdateItem = (item) => storyMgr.handleUpdateItem(item);
-const handleSelect = (id) => { const next = storyMgr.handleSelect(id, viewMode.value); if (next) viewMode.value = next; };
+// --- App.vue 里的 handleSelect 终极版 ---
+const handleSelect = (id) => {
+  if (viewMode.value === 'stories') {
+    // 1. 让业务逻辑切换故事 ID
+    storyMgr.handleSelect(id, 'story');
+    
+    // 2. 关键：手动强制切换视图模式喵！
+    // 既然选了故事，我们要么去看文件列表('files')，要么去看项目设置('project')
+    // 阿波建议先切到文件列表，让波波能看到段落喵 awa
+    viewMode.value = 'files'; 
+    
+    console.log("阿波成功帮波波切换到故事：", id);
+    showToast(`进入故事：${currentStory.value?.name || '新世界'}`);
+  } else {
+    // 正常模式：在段落列表里选段落
+    storyMgr.handleSelect(id, 'file');
+  }
+};
 const handleAdd = () => storyMgr.handleAdd(viewMode.value, currentStoryFiles.value, fileActions.generateUUID);
 const handleRenameItem = (id) => storyMgr.handleRenameItem(id);
 const handleRenameStory = (id) => storyMgr.handleRenameStory(id);

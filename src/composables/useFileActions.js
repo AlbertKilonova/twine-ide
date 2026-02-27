@@ -13,13 +13,13 @@ export function useFileActions(db, stories, allPassages, currentStoryId) {
     a.click();
   };
 
-  // --- Twee 转义/反转义逻辑 (补全逻辑) ---
+  // --- Twee 转义逻辑 ---
   const escapeForTweeHeader = (value) => value.replace(/\\/g, '\\\\').replace(/([[\]{}])/g, '\\$1');
   const escapeForTweeText = (value) => value.replace(/^::/gm, '\\::');
   const unescapeForTweeHeader = (value) => value.replace(/\\([[\]{}])/g, '$1').replace(/\\\\/g, '\\');
   const unescapeForTweeText = (value) => value.replace(/^\\:/gm, ':');
 
-  // --- 核心解析逻辑：全量解析 + 自动切除元数据 ---
+  // --- 核心解析逻辑 ---
   const parseTwee = (text) => {
     const sections = text.split(/^::/m);
     let meta = { rawData: {} }; 
@@ -37,24 +37,25 @@ export function useFileActions(db, stories, allPassages, currentStoryId) {
           meta.rawData = JSON.parse(content); 
           meta.ifid = meta.rawData.ifid; 
           meta.start = meta.rawData.start; 
-        } catch (e) { console.warn("StoryData解析失败"); }
+        } catch (e) { console.warn("StoryData解析失败喵"); }
       } else {
-        // 精准切割：匹配标题和[标签]，但彻底丢弃后面的{坐标}等元数据
         const match = headerLine.match(/^([^\[\{]+)(?:\s*\[(.*?)\])?(?:\s*\{.*?\})?/);
         const name = match ? match[1].trim() : headerLine;
         const tags = match?.[2] ? match[2].split(/\s+/).filter(t => t).map(unescapeForTweeHeader) : [];
         
+        // 注意：这里导出的 content 是为了让编辑器识别，所以要带上 :: 头
+        const fullHeader = `:: ${headerLine}\n`;
         items.push({ 
           name: unescapeForTweeHeader(name), 
           tags,
-          content: unescapeForTweeText(content)
+          content: fullHeader + unescapeForTweeText(content)
         });
       }
     });
     return { meta, items };
   };
 
-  // --- 导出逻辑：支持单文件与ZIP整理 ---
+  // --- 导出逻辑：现在变得超轻量了喵！ ---
   const handleExport = async (type, currentStoryName, currentStory, currentStoryFiles) => {
     if (currentStoryFiles.length === 0) {
       showToast('没有可以导出的内容哦波');
@@ -63,32 +64,33 @@ export function useFileActions(db, stories, allPassages, currentStoryId) {
     const zip = type === 'zip' ? new JSZip() : null;
     const startP = currentStoryFiles.find(p => p.isStart) || currentStoryFiles[0];
     
-    const storyTitle = `:: StoryTitle\n${escapeForTweeText(currentStoryName)}\n\n`;
+    // 1. 准备元数据部分
+    const storyTitle = `:: StoryTitle\n${currentStoryName}\n\n`;
     const storyDataObj = {
       ifid: currentStory?.ifid || generateUUID(),
       format: currentStory?.format || "SugarCube",
       "format-version": currentStory?.formatVersion || "2.37.3",
       start: startP?.name || "Start",
-      zoom: currentStory?.zoom || 1,
-      ...(currentStory?.extraMetadata || {}) 
+      zoom: currentStory?.zoom || 1
     };
     const storyData = `:: StoryData\n${JSON.stringify(storyDataObj, null, 2)}\n\n`;
     
+    // 辅助函数：导出时确保内容干净
+    const formatPassageForExport = (p) => {
+      // 因为数据库里的 content 已经自带了 :: 标题行，直接 trim 拼接即可
+      return p.content.trim() + "\n\n";
+    };
+
     if (type === 'single') {
       let res = storyTitle + storyData;
       currentStoryFiles.forEach(f => {
-        const escapedName = escapeForTweeHeader(f.name);
-        const tagStr = f.tags?.length ? ` [${f.tags.map(escapeForTweeHeader).join(' ')}]` : '';
-        res += `:: ${escapedName}${tagStr}\n${escapeForTweeText(f.content)}\n\n`;
+        res += formatPassageForExport(f);
       });
       downloadBlob(new Blob([res]), `${currentStoryName}.twee`);
     } else {
-      // ZIP 模式：按文件夹存放
+      // ZIP 模式
       for (const f of currentStoryFiles) {
-        const escapedName = escapeForTweeHeader(f.name);
-        const tagStr = f.tags?.length ? ` [${f.tags.map(escapeForTweeHeader).join(' ')}]` : '';
-        const body = `:: ${escapedName}${tagStr}\n${escapeForTweeText(f.content)}`;
-        // 如果有文件夹则放入文件夹，没有则统一放在 passages/
+        const body = formatPassageForExport(f);
         const filePath = f.folder ? `${f.folder}/${f.name}.twee` : `passages/${f.name}.twee`;
         zip.file(filePath, body);
       }
@@ -99,17 +101,15 @@ export function useFileActions(db, stories, allPassages, currentStoryId) {
     showToast('导出成功啦！波波最棒！');
   };
 
-  // --- 导入逻辑：ZIP 递归处理 + 数据库写入 + 响应式推送 ---
-  // --- 导入逻辑：支持 .twee, .zip 和 .html (Twine 编译成品) ---
+  // --- 导入逻辑：将 Script 和 Style 转化为普通段落 ---
   const handleImportFile = (onSuccess) => {
     const input = document.createElement('input');
     input.type = 'file';
-    // 加上 .html 接收
     input.accept = '.twee,.zip,.txt,.html';
     input.onchange = async (e) => {
       const file = e.target.files[0];
       if (!file) return;
-      showLoadingToast({ message: '阿波正在努力搬运中...', forbidClick: true });
+      showLoadingToast({ message: '阿波搬运中...', forbidClick: true });
       
       try {
         let fTitle = file.name.replace(/\.[^/.]+$/, ""), 
@@ -118,7 +118,6 @@ export function useFileActions(db, stories, allPassages, currentStoryId) {
             ps = [], 
             fRawMeta = {};
 
-        // --- 分支 1: 处理 HTML 格式 (从成品解析) ---
         if (file.name.endsWith('.html')) {
           const htmlText = await file.text();
           const parser = new DOMParser();
@@ -128,72 +127,62 @@ export function useFileActions(db, stories, allPassages, currentStoryId) {
           if (storyData) {
             fTitle = storyData.getAttribute('name') || fTitle;
             fIfid = storyData.getAttribute('ifid') || fIfid;
-            fStart = storyData.getAttribute('startnode'); // 这里的 startnode 是 pid
-            
+            fStart = storyData.getAttribute('startnode');
             fRawMeta = {
-              format: storyData.getAttribute('format') || "SugarCube",
-              'format-version': storyData.getAttribute('format-version') || "2.37.3",
-              zoom: parseFloat(storyData.getAttribute('zoom')) || 1,
-              script: doc.querySelector('[role=script]')?.textContent || '',
-              stylesheet: doc.querySelector('[role=stylesheet]')?.textContent || ''
+              format: storyData.getAttribute('format'),
+              'format-version': storyData.getAttribute('format-version'),
+              zoom: parseFloat(storyData.getAttribute('zoom')) || 1
             };
 
+            // 【关键改动】将脚本和样式表直接转为特殊段落喵
+            const script = doc.querySelector('[role=script]')?.textContent;
+            if (script?.trim()) {
+              ps.push({
+                name: 'StoryScript',
+                tags: ['script'],
+                content: `:: StoryScript [script]\n${script.trim()}`
+              });
+            }
+            const style = doc.querySelector('[role=stylesheet]')?.textContent;
+            if (style?.trim()) {
+              ps.push({
+                name: 'StoryStylesheet',
+                tags: ['stylesheet'],
+                content: `:: StoryStylesheet [stylesheet]\n${style.trim()}`
+              });
+            }
+
             const passageEls = Array.from(doc.querySelectorAll('tw-passagedata'));
-            ps = passageEls.map(el => {
+            ps.push(...passageEls.map(el => {
               const pName = el.getAttribute('name') || 'Untitled';
               const pTags = el.getAttribute('tags')?.split(/\s+/).filter(t => t) || [];
-              const pPid = el.getAttribute('pid');
-              const pRawText = el.textContent || '';
-              
-              // 重点：缝合首行！波波的编辑器必须要有 :: 才能识别标题喵
               const tagStr = pTags.length > 0 ? ` [${pTags.join(' ')}]` : '';
-              // 使用你已有的 escapeForTweeHeader 确保标题安全
-              const header = `:: ${escapeForTweeHeader(pName)}${tagStr}\n`;
-              
               return {
                 name: pName,
                 tags: pTags,
-                content: header + pRawText, // 缝合后的内容
-                isStart: pPid === fStart // 如果 pid 匹配，标记为起点
+                content: `:: ${escapeForTweeHeader(pName)}${tagStr}\n${el.textContent || ''}`,
+                isStart: el.getAttribute('pid') === fStart
               };
-            });
-          } else {
-            throw new Error('找不到 tw-storydata 节点喵');
+            }));
           }
-
-        // --- 分支 2: 处理 ZIP 格式 ---
         } else if (file.name.endsWith('.zip')) {
           const zip = await JSZip.loadAsync(file);
-          const files = Object.keys(zip.files).filter(name => !zip.files[name].dir && (name.endsWith('.twee') || name.endsWith('.txt')));
+          const files = Object.keys(zip.files).filter(name => name.endsWith('.twee') || name.endsWith('.txt'));
           for (const name of files) {
-            const fileContent = await zip.files[name].async("string");
-            const res = parseTwee(fileContent);
+            const res = parseTwee(await zip.files[name].async("string"));
             if (res.meta.title) fTitle = res.meta.title;
             if (res.meta.ifid) fIfid = res.meta.ifid;
-            if (res.meta.start) fStart = res.meta.start;
             fRawMeta = { ...fRawMeta, ...res.meta.rawData };
-            ps.push(...res.items.map(item => ({ ...item, content: item.content }))); 
-            // Twee 解析出来的 content 已经是带 :: 的了，不需要缝合
+            ps.push(...res.items);
           }
-
-        // --- 分支 3: 处理单文件 Twee ---
         } else {
           const res = parseTwee(await file.text());
           fTitle = res.meta.title || fTitle;
           fIfid = res.meta.ifid || fIfid;
-          fStart = res.meta.start;
           fRawMeta = res.meta.rawData;
-          // parseTwee 的逻辑里 items 里的 content 是不带 :: 的，所以需要补一下
-          ps = res.items.map(item => {
-             const tagStr = item.tags?.length ? ` [${item.tags.join(' ')}]` : '';
-             return {
-               ...item,
-               content: `:: ${escapeForTweeHeader(item.name)}${tagStr}\n${item.content}`
-             }
-          });
+          ps = res.items;
         }
 
-        // --- 统一写入数据库 ---
         const newS = { 
           id: Date.now().toString(), 
           name: fTitle, 
@@ -202,14 +191,13 @@ export function useFileActions(db, stories, allPassages, currentStoryId) {
           format: fRawMeta.format || "SugarCube", 
           formatVersion: fRawMeta['format-version'] || "2.37.3",
           zoom: fRawMeta.zoom || 1,
-          extraMetadata: fRawMeta 
+          extraMetadata: {} // 脚本和样式已经拿走，这里变干净了喵！
         };
         
         await db.put('stories', JSON.parse(JSON.stringify(newS)));
         stories.value.push(newS);
 
         for (const p of ps) {
-          // 如果是 HTML 导入，isStart 已经算好了；如果是 Twee，则按名字匹配
           const isStart = p.isStart || (fStart ? p.name === fStart : (p.name === 'Start' || p.name === 'start'));
           const newP = { 
             id: (Date.now() + Math.random()).toString(), 
@@ -230,7 +218,7 @@ export function useFileActions(db, stories, allPassages, currentStoryId) {
       } catch (err) {
         console.error(err);
         closeToast();
-        showToast('导入坏掉了，波波快看看文件对不对 QwQ');
+        showToast('导入失败了波 xwx');
       }
     };
     input.click();

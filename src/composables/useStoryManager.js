@@ -27,6 +27,8 @@ export function useStoryManager(stories, allPassages, currentStoryId, currentFil
     if (type === 'story') {
       currentStoryId.value = id;
       currentFileId.value = null;
+      
+      return 'project';
     } else {
       currentFileId.value = id;
       // 切换瞬间检查一次，防止因为旧数据导致不显示
