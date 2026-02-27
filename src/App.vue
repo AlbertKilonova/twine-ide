@@ -24,7 +24,10 @@
           v-if="viewMode === 'project'" 
           :story="currentStory" 
           :count="currentStoryFiles.length"
-          @saveOnly="saveNow"  @update="handleRenameStory" />
+          :formatMgr="formatMgr" 
+          @saveOnly="saveNow"  
+          @update="handleRenameStory" 
+        />
       </aside>
     </transition>
 
@@ -78,6 +81,7 @@ import { initDB } from './db/index';
 import { useStoryManager } from './composables/useStoryManager';
 import { useFileActions } from './composables/useFileActions';
 import { useEditorBridge } from './composables/useEditorBridge';
+import { useFormatManager } from './composables/useFormatManager';
 
 // 状态
 const viewMode = ref('files');
@@ -90,6 +94,8 @@ const editorViewRef = ref(null);
 let db = null;
 
 const dbIntf = { 
+  getAll: (s) => db?.getAll(s), // 别忘了给 formatManager 增加 getAll 访问权限喵！
+  putItem: (s, i) => db?.put(s, i), // 对应你之前的 putItem 呼叫
   put: (s, i) => {
     if (!db) { showToast('数据库还没准备好哦 awa'); return; }
     return db.put(s, i);
@@ -99,6 +105,8 @@ const dbIntf = {
     return db.delete(s, id);
   }
 };
+
+const formatMgr = useFormatManager(dbIntf);
 const storyMgr = useStoryManager(stories, allPassages, currentStoryId, currentFileId, dbIntf);
 const fileActions = useFileActions(dbIntf, stories, allPassages, currentStoryId);
 const activeFile = computed(() => allPassages.value.find(p => p.id === currentFileId.value));
@@ -190,5 +198,11 @@ const switchMode = (mode) => {
   else { if (viewMode.value === mode) isSidebarOpen.value = !isSidebarOpen.value; else { viewMode.value = mode; isSidebarOpen.value = true; } }
 };
 const saveNow = () => { if (activeFile.value) { handleUpdateItem(activeFile.value); showToast('存好啦 awa'); } };
-const preview = () => showToast('预览研发中...');
+const preview = () => {
+  fileActions.handlePreview(
+    currentStory.value, 
+    currentStoryFiles.value, 
+    formatMgr
+  );
+};
 </script>

@@ -1,5 +1,6 @@
 import { showToast, showLoadingToast, closeToast } from 'vant'; 
 import JSZip from 'jszip';
+import { unref } from 'vue';
 
 export function useFileActions(db, stories, allPassages, currentStoryId) {
   // --- 工具函数：UUID 生成 ---
@@ -223,6 +224,98 @@ export function useFileActions(db, stories, allPassages, currentStoryId) {
     };
     input.click();
   };
+  
+  const handlePreview = async (story, passages, formatMgr) => {
+    if (!story || passages.length === 0) {
+      showToast('没有段落可以预览喵 xwx');
+      return;
+    }
 
-  return { handleExport, handleImportFile, generateUUID, escapeForTweeHeader, escapeForTweeText, unescapeForTweeHeader, unescapeForTweeText };
+    try {
+      showToast('阿波正在裁剪新衣服... (。•ω•。)');
+
+      // --- 1. 准备 Twee 源码 ---
+      // 构造 StoryData
+      const storyData = {
+        ifid: story.ifid,
+        format: story.format,
+        "format-version": story.formatVersion,
+        start: passages.find(p => p.isStart)?.name || passages[0]?.name || 'Start'
+      };
+
+      let tweeSource = `:: StoryData\n${JSON.stringify(storyData, null, 2)}\n\n`;
+      tweeSource += `:: StoryTitle\n${story.name}\n\n`;
+
+      passages.forEach(p => {
+        const tags = (p.tags && p.tags.length) ? ` [${p.tags.join(' ')}]` : '';
+        tweeSource += `:: ${p.name}${tags}\n${p.content}\n\n`;
+      });
+
+      // --- 2. 获取故事格式的【原始JS源码】 ---
+      // 重点：tweers-core 的 build 必须在 source 里看到 window.storyFormat
+      const id = `${story.format.toLowerCase()}-${story.formatVersion}`;
+      let rawFormatCode = "";
+
+      // A. 先去私人衣橱（数据库）里翻翻
+      const di = unref(db);
+      if (di && di.getAll) {
+        try {
+          const customs = await di.getAll('custom_formats');
+          const found = customs.find(c => c.id === `custom-${id}`);
+          if (found && found.raw) {
+            rawFormatCode = found.raw;
+            console.log("从私人衣橱拿到了原始衣服波！");
+          }
+        } catch (e) { console.warn("私人衣橱暂时打不开波", e); }
+      }
+
+      // B. 如果私人衣橱没有，去公共衣橱（系统资源）里翻翻
+      if (!rawFormatCode && formatMgr) {
+        // 波波，请确保在 useFormatManager 里加一个 getRawLoader 方法喵！
+        // 或者这里通过 formatMgr 暴露的 loaders 直接加载
+        try {
+          rawFormatCode = await formatMgr.getRawCode(id);
+          console.log("从公共衣橱拿到了系统衣服波！");
+        } catch (e) { console.warn("公共衣橱也没这件衣服喵", e); }
+      }
+
+      if (!rawFormatCode) {
+        throw new Error(`找不到格式 ${story.format} 的原始源码波！`);
+      }
+
+      // --- 3. 召唤编译引擎 ---
+      const mod = await import('tweers-core');
+      
+      // 检查 WASM 是否初始化（这步波波如果已经在 onMounted 做过了可以略过喵）
+      // if (!mod.isInitialized) { ... } 
+
+      const config = {
+        sources: [{ type: 'text', name: 'preview.tw', content: tweeSource }],
+        format_info: {
+          name: story.format,
+          version: story.formatVersion,
+          source: rawFormatCode // 这里必须是包含 window.storyFormat 的原始 JS 喵！
+        }
+      };
+
+      // 编译！
+      const result = mod.build(config);
+
+      // --- 4. 开启新窗口展示 ---
+      const blob = new Blob([result.html], { type: 'text/html' });
+      const url = URL.createObjectURL(blob);
+      const win = window.open(url, '_blank');
+      
+      if (!win) {
+        showToast('预览被浏览器拦截了喵 xwx');
+      } else {
+        showToast('预览准备就绪！biu~');
+      }
+
+    } catch (err) {
+      console.error("预览失败喵:", err);
+      showToast(`预览失败: ${err.message}`);
+    }
+  };
+  return { handleExport, handleImportFile, generateUUID, escapeForTweeHeader, escapeForTweeText, unescapeForTweeHeader, unescapeForTweeText, handlePreview };
 }
