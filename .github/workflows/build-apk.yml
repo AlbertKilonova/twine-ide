@@ -80,7 +80,7 @@ jobs:
             --ks-key-alias ${{ secrets.KEY_ALIAS }} \
             --ks-pass pass:${{ secrets.KEYSTORE_PASSWORD }} \
             --key-pass pass:${{ secrets.KEY_PASSWORD }} \
-            --out twine-ide-${{ env.VERSION }}.apk \
+            --out twide-${{ env.VERSION }}.apk \
             android/app/build/outputs/apk/release/app-release-unsigned.apk
 
       - name: Create Release and Upload APK
