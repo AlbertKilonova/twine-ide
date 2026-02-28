@@ -43,6 +43,8 @@ jobs:
 
       - name: Build web assets
         run: npm run build
+        env:
+          VITE_BUILD_TARGET: apk
 
       - name: Add Android platform
         run: npx cap add android
@@ -85,5 +87,5 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ env.VERSION }}
-          files: twine-ide-${{ env.VERSION }}.apk
+          files: twide-${{ env.VERSION }}.apk
           generate_release_notes: true

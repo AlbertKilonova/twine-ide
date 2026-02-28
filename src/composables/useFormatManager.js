@@ -9,8 +9,7 @@ export function useFormatManager(dbInterface) {
   const iconModules = import.meta.glob('/src/assets/story-formats/*/icon.svg', { query: 'url', eager: true });
 
   const scanFormats = async () => {
-    console.log("--- 阿波开始查户口了喵 ---");
-    console.log("扫描到的文件路径列表:", Object.keys(formatLoaders));
+    console.log("扫描到的故事格式列表:", Object.keys(formatLoaders));
     
     const formats = [];
     
@@ -18,7 +17,7 @@ export function useFormatManager(dbInterface) {
       // 1. 扫描系统格式
       const paths = Object.keys(formatLoaders);
       if (paths.length === 0) {
-        console.error("警告：阿波在 /src/assets/story-formats/ 下一件衣服都没找到喵！路径对吗波？");
+        console.error("未获取到本地故事格式");
       }
 
       for (const path of paths) {

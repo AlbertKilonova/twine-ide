@@ -59,7 +59,7 @@ export function useFileActions(db, stories, allPassages, currentStoryId) {
   // --- 导出逻辑：现在变得超轻量了喵！ ---
   const handleExport = async (type, currentStoryName, currentStory, currentStoryFiles) => {
     if (currentStoryFiles.length === 0) {
-      showToast('没有可以导出的内容哦波');
+      showToast('没有可以导出的内容喵');
       return;
     }
     const zip = type === 'zip' ? new JSZip() : null;
@@ -69,8 +69,8 @@ export function useFileActions(db, stories, allPassages, currentStoryId) {
     const storyTitle = `:: StoryTitle\n${currentStoryName}\n\n`;
     const storyDataObj = {
       ifid: currentStory?.ifid || generateUUID(),
-      format: currentStory?.format || "SugarCube",
-      "format-version": currentStory?.formatVersion || "2.37.3",
+      format: currentStory?.format || "",
+      "format-version": currentStory?.formatVersion || "",
       start: startP?.name || "Start",
       zoom: currentStory?.zoom || 1
     };
@@ -92,14 +92,14 @@ export function useFileActions(db, stories, allPassages, currentStoryId) {
       // ZIP 模式
       for (const f of currentStoryFiles) {
         const body = formatPassageForExport(f);
-        const filePath = f.folder ? `${f.folder}/${f.name}.twee` : `passages/${f.name}.twee`;
+        const filePath = f.folder ? `passages/${f.folder}/${f.name}.twee` : `passages/${f.name}.twee`;
         zip.file(filePath, body);
       }
       zip.file(`story_metadata.twee`, storyTitle + storyData);
       const content = await zip.generateAsync({ type: 'blob' });
       downloadBlob(content, `${currentStoryName}.zip`);
     }
-    showToast('导出成功啦！波波最棒！');
+    showToast('导出成功啦，即将开始下载！');
   };
 
   // --- 导入逻辑：将 Script 和 Style 转化为普通段落 ---
@@ -110,7 +110,7 @@ export function useFileActions(db, stories, allPassages, currentStoryId) {
     input.onchange = async (e) => {
       const file = e.target.files[0];
       if (!file) return;
-      showLoadingToast({ message: '阿波搬运中...', forbidClick: true });
+      showLoadingToast({ message: '导入中...', forbidClick: true });
       
       try {
         let fTitle = file.name.replace(/\.[^/.]+$/, ""), 
@@ -189,8 +189,8 @@ export function useFileActions(db, stories, allPassages, currentStoryId) {
           name: fTitle, 
           folders: [], 
           ifid: fIfid, 
-          format: fRawMeta.format || "SugarCube", 
-          formatVersion: fRawMeta['format-version'] || "2.37.3",
+          format: fRawMeta.format || "", 
+          formatVersion: fRawMeta['format-version'] || "",
           zoom: fRawMeta.zoom || 1,
           extraMetadata: {} // 脚本和样式已经拿走，这里变干净了喵！
         };
@@ -219,7 +219,7 @@ export function useFileActions(db, stories, allPassages, currentStoryId) {
       } catch (err) {
         console.error(err);
         closeToast();
-        showToast('导入失败了波 xwx');
+        showToast('导入失败了喵 xwx');
       }
     };
     input.click();
@@ -232,7 +232,7 @@ export function useFileActions(db, stories, allPassages, currentStoryId) {
     }
 
     try {
-      showToast('阿波正在裁剪新衣服... (。•ω•。)');
+      showToast('tweers正在编译你的故事... (。•ω•。)');
 
       // --- 1. 准备 Twee 源码 ---
       // 构造 StoryData
@@ -264,9 +264,8 @@ export function useFileActions(db, stories, allPassages, currentStoryId) {
           const found = customs.find(c => c.id === `custom-${id}`);
           if (found && found.raw) {
             rawFormatCode = found.raw;
-            console.log("从私人衣橱拿到了原始衣服波！");
           }
-        } catch (e) { console.warn("私人衣橱暂时打不开波", e); }
+        } catch (e) { console.warn("自定义故事格式获取失败", e); }
       }
 
       // B. 如果私人衣橱没有，去公共衣橱（系统资源）里翻翻
@@ -275,12 +274,11 @@ export function useFileActions(db, stories, allPassages, currentStoryId) {
         // 或者这里通过 formatMgr 暴露的 loaders 直接加载
         try {
           rawFormatCode = await formatMgr.getRawCode(id);
-          console.log("从公共衣橱拿到了系统衣服波！");
-        } catch (e) { console.warn("公共衣橱也没这件衣服喵", e); }
+        } catch (e) { console.warn("本地故事格式获取失败", e); }
       }
 
       if (!rawFormatCode) {
-        throw new Error(`找不到格式 ${story.format} 的原始源码波！`);
+        throw new Error(`找不到格式 ${story.format} 的原始源码OAO！`);
       }
 
       // --- 3. 召唤编译引擎 ---
@@ -304,17 +302,26 @@ export function useFileActions(db, stories, allPassages, currentStoryId) {
       // --- 4. 开启新窗口展示 ---
       const blob = new Blob([result.html], { type: 'text/html' });
       const url = URL.createObjectURL(blob);
-      const win = window.open(url, '_blank');
-      
-      if (!win) {
-        showToast('预览被浏览器拦截了喵 xwx');
+
+      const isApk = import.meta.env.VITE_BUILD_TARGET === 'apk';      
+
+      if (isApk) {
+        // 如果是 APK，我们把 URL 传回给 App.vue
+        return url; 
       } else {
-        showToast('预览准备就绪！biu~');
+        // 如果是浏览器，直接开新标签
+        const win = window.open(url, '_blank');
+        if (!win) {
+          showToast('预览被浏览器拦截了喵 xwx');
+        } else {
+          showToast('预览准备就绪！即将跳转喵！');
+        }
+        return null;
       }
 
     } catch (err) {
       console.error("预览失败喵:", err);
-      showToast(`预览失败: ${err.message}`);
+      showToast(`预览失败喵: ${err.message}`);
     }
   };
   return { handleExport, handleImportFile, generateUUID, escapeForTweeHeader, escapeForTweeText, unescapeForTweeHeader, unescapeForTweeText, handlePreview };

@@ -60,6 +60,13 @@
       <transition name="van-fade">
         <VisualMap v-if="viewMode === 'visual'" :passages="currentStoryFiles" :activeId="currentFileId" @close="viewMode = 'files'" @jump="handleJump" @updatePosition="handleUpdateItem" />
       </transition>
+      <div v-if="isPreviewOpen" class="apk-preview-overlay">
+        <div class="preview-header">
+          <button @click="isPreviewOpen = false">返回编辑器</button>
+          <span>预览模式</span>
+        </div>
+        <iframe :src="previewUrl" class="preview-iframe" allow="autoplay; fullscreen; focus-without-user-activation"></iframe>
+      </div>
     </main>
   </div>
 </template>
@@ -91,6 +98,8 @@ const allPassages = ref([]);
 const currentStoryId = ref(null);
 const currentFileId = ref(null);
 const editorViewRef = ref(null);
+const previewUrl = ref('');
+const isPreviewOpen = ref(false);
 let db = null;
 
 const dbIntf = { 
@@ -195,12 +204,183 @@ const switchMode = (mode) => {
   if (mode === 'visual') { viewMode.value = viewMode.value === 'visual' ? 'files' : 'visual'; isSidebarOpen.value = viewMode.value !== 'visual'; }
   else { if (viewMode.value === mode) isSidebarOpen.value = !isSidebarOpen.value; else { viewMode.value = mode; isSidebarOpen.value = true; } }
 };
-const saveNow = () => { if (activeFile.value) { handleUpdateItem(activeFile.value); showToast('存好啦 awa'); } };
-const preview = () => {
-  fileActions.handlePreview(
+const saveNow = async () => {
+  let hasSaved = false;
+
+  // 1. 如果有正在编辑的片段，存片段
+  if (activeFile.value) {
+    handleUpdateItem(activeFile.value);
+    hasSaved = true;
+  }
+
+  // 2. 【最关键的修复】如果有当前的故事，存故事设置！
+  if (currentStory.value) {
+    handleUpdateItem(currentStory.value); // 这里的 handleUpdateItem 会自动识别这是故事喵
+    hasSaved = true;
+  }
+
+  if (hasSaved) {
+    showToast('全部存好啦！波波最棒了喵~');
+  }
+};
+
+const preview = async () => {
+  // 运行预览逻辑
+  const url = await fileActions.handlePreview(
     currentStory.value, 
     currentStoryFiles.value, 
     formatMgr
   );
+
+  // 如果拿到了 url，说明 handlePreview 判断出这是 APK 环境波！
+  if (url) {
+    previewUrl.value = url;
+    isPreviewOpen.value = true;
+  }
 };
+
+const closePreview = () => {
+  if (previewUrl.value) {
+    URL.revokeObjectURL(previewUrl.value); // 释放内存喵！
+  }
+  isPreviewOpen.value = false;
+  previewUrl.value = '';
+};
+
 </script>
+
+<style scoped>
+/* 基础布局 */
+.vscode-layout {
+  display: flex;
+  height: 100vh;
+  width: 100vw;
+  background: #1e1e1e;
+  overflow: hidden;
+  color: #cccccc;
+}
+
+/* 侧边栏盒子 */
+.side-nav-box {
+  width: 260px;
+  min-width: 260px;
+  background: #252526;
+  border-right: 1px solid #333;
+  display: flex;
+  flex-direction: column;
+}
+
+/* 主编辑区 */
+.editor-main {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  position: relative;
+  overflow: hidden;
+  background: #1e1e1e;
+}
+
+/* 面包屑导航 */
+.breadcrumb {
+  height: 35px;
+  background: #252526;
+  display: flex;
+  align-items: center;
+  padding: 0 15px;
+  font-size: 12px;
+  color: #888;
+  border-bottom: 1px solid #333;
+}
+
+.menu-toggle {
+  margin-right: 10px;
+  font-size: 18px;
+  cursor: pointer;
+  color: #ccc;
+}
+
+.path-text {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* 标签管理器 */
+.tag-manager {
+  display: flex;
+  align-items: center;
+  padding: 8px 15px;
+  background: #2d2d2d;
+  gap: 10px;
+}
+
+.tag-icon {
+  font-size: 14px;
+  color: #666;
+}
+
+.tag-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  flex: 1;
+}
+
+.tag-input {
+  background: transparent;
+  border: none;
+  color: #ccc;
+  font-size: 12px;
+  outline: none;
+  width: 80px;
+}
+
+/* 动画效果 */
+.side-slide-enter-active, .side-slide-leave-active {
+  transition: all 0.2s ease;
+}
+.side-slide-enter-from, .side-slide-leave-to {
+  transform: translateX(-100%);
+  opacity: 0;
+}
+
+/* --- APK 预览层样式 (波波刚才加的) --- */
+.apk-preview-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 9999;
+  background: #000;
+  display: flex;
+  flex-direction: column;
+}
+
+.preview-header {
+  height: 44px;
+  background: #333;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0 15px;
+  color: #fff;
+}
+
+.preview-header button {
+  background: #4ec9b0;
+  border: none;
+  padding: 5px 12px;
+  border-radius: 4px;
+  color: white;
+  font-size: 12px;
+}
+
+.preview-iframe {
+  flex: 1;
+  border: none;
+  width: 100%;
+  height: 100%;
+  background: #fff;
+}
+</style>

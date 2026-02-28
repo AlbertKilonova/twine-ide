@@ -21,6 +21,14 @@ export function useStoryManager(stories, allPassages, currentStoryId, currentFil
     }
     return item;
   };
+  
+  const handleUpdateItem = async (item) => {
+  if (item.storyId) {
+    await syncPassage(item); // 是片段就去片段盒子里
+  } else {
+    await syncStory(item);   // 是故事就去故事盒子里
+  }
+};
 
   // --- 基础选择 ---
   const handleSelect = (id, type) => {
@@ -50,8 +58,8 @@ export function useStoryManager(stories, allPassages, currentStoryId, currentFil
         extraMetadata: {},
         folders: [], 
         ifid: utils.generateUUID(), 
-        format: "SugarCube", 
-        formatVersion: "2.37.3",
+        format: "", 
+        formatVersion: "",
         zoom: 1 
       };
       stories.value.push(s);
@@ -65,7 +73,7 @@ export function useStoryManager(stories, allPassages, currentStoryId, currentFil
         name, 
         folder: null, 
         // 初始内容一定要带换行，给波波留好写字的地方
-        content: `:: ${utils.escapeHeader(name)}\n\n在这里写下故事吧波！`, 
+        content: `:: ${utils.escapeHeader(name)}\n\n在这里写下故事吧！`, 
         isStart: currentStoryFiles.length === 0, 
         tags: [] 
       };
@@ -105,7 +113,7 @@ export function useStoryManager(stories, allPassages, currentStoryId, currentFil
 
   // --- 删除逻辑 ---
   const handleDeleteItem = (id) => {
-    showConfirmDialog({ message: '真的要删除这个片段吗波？' }).then(() => {
+    showConfirmDialog({ message: '真的要删除这个片段吗？' }).then(() => {
       removePassage(id);
       if (currentFileId.value === id) currentFileId.value = null;
       showToast('删掉啦');
@@ -122,7 +130,7 @@ export function useStoryManager(stories, allPassages, currentStoryId, currentFil
 
   // --- 文件夹逻辑 ---
   const handleAddFolder = (currentStory) => {
-    const n = prompt("新建一个文件夹");
+    const n = prompt("新建文件夹");
     if (n && currentStory) {
       if (!currentStory.folders) currentStory.folders = [];
       currentStory.folders.push(n);
@@ -148,7 +156,7 @@ export function useStoryManager(stories, allPassages, currentStoryId, currentFil
   };
 
   const handleDeleteFolder = (folderName, currentStory) => {
-    showConfirmDialog({ message: '要删除文件夹吗？里面的片段会变回未分类哦。' }).then(() => {
+    showConfirmDialog({ message: '要删除文件夹吗？里面的片段会被拆到未分类里哦。' }).then(() => {
       if (currentStory && currentStory.folders) {
         currentStory.folders = currentStory.folders.filter(f => f !== folderName);
         allPassages.value.forEach(p => {
@@ -173,15 +181,14 @@ export function useStoryManager(stories, allPassages, currentStoryId, currentFil
 
     try {
       await syncMultiplePassages(storyPassages);
-      showToast('起点已经插好旗子啦！');
     } catch (err) {
       console.error("设置起点失败喵:", err);
-      showToast('设置失败了 xwx');
+      showToast('起点设置失败了 xwx');
     }
   };
 
   return { 
-    handleUpdateItem: syncPassage,
+    handleUpdateItem,
     handleSelect,
     handleAdd,
     handleRenameItem,
