@@ -149,7 +149,7 @@ const dbIntf = {
 
 const formatMgr = useFormatManager(dbIntf);
 const storyMgr = useStoryManager(stories, allPassages, currentStoryId, currentFileId, dbIntf);
-const fileActions = useFileActions(dbIntf, stories, allPassages, currentStoryId);
+const fileActions = useFileActions(dbIntf, stories, allPassages, currentStoryId, assets);
 const activeFile = computed(() => allPassages.value.find(p => p.id === currentFileId.value));
 const { syncData, currentPassageTags, addTag, removeTag } = useEditorBridge(activeFile, storyMgr.handleUpdateItem);
 
