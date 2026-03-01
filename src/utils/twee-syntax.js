@@ -6,12 +6,30 @@ export const tweeLanguage = StreamLanguage.define({
     // 1. 优先吃掉空格，防止空格和后面的词粘连喵
     if (stream.eatSpace()) return null;
 
-    // 2. 标题行 ::
+// 1. 标题行 + 标签的精准连招喵！
     if (stream.sol() && stream.match(/^::/)) {
-      stream.skipToEnd();
-      return "header";
+      // 这一行剩下的所有文字
+      let fullLine = stream.string.slice(stream.pos);
+      // 寻找标签的位置：必须是 [ 前面有空格，且后面直到行尾是 ]
+      let tagIndex = fullLine.search(/\s+\[[^\]\n]+\]$/);
+
+      if (tagIndex !== -1) {
+        // 如果找到了位于行尾的标签，我们只吃掉标题那一部分波
+        stream.match(fullLine.slice(0, tagIndex));
+        return "header";
+      } else {
+        // 没找到标签，整行都是标题喵
+        stream.skipToEnd();
+        return "header";
+      }
     }
 
+    // 2. 专门捕获紧跟在标题后面的标签喵！
+    // 逻辑：如果当前位置前面是标题（::开头且没到行尾），且现在遇到了 [
+    if (stream.match(/^(\s+)?\[[^\]\n]+\]$/) && stream.string.startsWith('::')) {
+       return "attributeName"; 
+    }
+        
     // 3. 图片 [img[...]]
     if (stream.match(/^\[img\[[^\]\n]*\]\]/)) return "string";
 
