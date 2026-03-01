@@ -18,7 +18,10 @@
       <section class="action-section">
         <div class="section-title">编译</div>
         <van-button block size="small" icon="certificate" class="vscode-btn" @click="$emit('build')">
-          开始构建 HTML (Build)
+          构建 HTML (Build)
+        </van-button>
+        <van-button block size="small" icon="shield-check" class="vscode-btn primary" @click="$emit('buildSingle')">
+          构建单文件 HTML (内嵌资源)
         </van-button>
         <p class="build-tip">将使用项目管理页设置的格式进行编译~</p>
       </section>

@@ -18,7 +18,7 @@
           @renameStory="handleRenameStory" @setStart="handleSetStart"
           @importStory="handleImportFile"
         />
-        <ExportPanel v-if="viewMode === 'export'" :storyName="currentStoryName" :count="currentStoryFiles.length" @preview="preview" @test="test" @build="handleBuild" @doExport="handleExport" />
+        <ExportPanel v-if="viewMode === 'export'" :storyName="currentStoryName" :count="currentStoryFiles.length" @preview="preview" @test="test" @build="handleBuild" @buildSingle="handleBuildSingle" @doExport="handleExport" />
         <ProjectSettings 
           :key="currentStory?.id"
           v-if="viewMode === 'project'" 
@@ -301,6 +301,10 @@ const handleAssetUpload = async (file) => {
 const handleAssetRename = async (id, newName) => {
   await renameAsset(id, newName);
   showToast('改名成功！');
+};
+
+const handleBuildSingle = () => {
+  fileActions.handleBuildSingleFile(currentStory.value, currentStoryFiles.value, formatMgr);
 };
 
 </script>
