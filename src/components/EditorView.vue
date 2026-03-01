@@ -49,7 +49,14 @@ const syncScroll = () => {
 // 处理输入
 const handleInput = (e) => {
   emit('update:modelValue', e.target.value);
-  emit('input');
+  setTimeout(() => {
+    el.focus();
+    const newPos = start + str.length;
+    el.setSelectionRange(newPos, newPos);
+    
+    // 触发外部可能需要的同步逻辑
+    emit('input');
+  }, 0);
 };
 
 // 暴露插入文字的能力给波波用

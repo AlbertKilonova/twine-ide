@@ -42,6 +42,9 @@
           </div>
           
           <draggable 
+            :delay="200"
+            :delay-touch-only="true" 
+            :touch-start-threshold="5"
             v-show="!collapsedFolders[folder]"
             :list="getFilesByFolder(folder)"
             group="passages"
@@ -76,6 +79,9 @@
             <span class="name-text">未分类段落</span>
           </div>
           <draggable 
+            :delay="200"
+            :delay-touch-only="true" 
+            :touch-start-threshold="5"
             v-show="!collapsedFolders['root']"
             :list="rootFiles"
             group="passages"

@@ -1,6 +1,6 @@
 <template>
   <div class="side-panel-inner project-settings">
-    <div class="panel-header">项目配置中心</div>
+    <div class="panel-header">项目配置</div>
     
     <div class="panel-content" v-if="story">
       <div class="info-card">

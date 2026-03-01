@@ -3,7 +3,7 @@
     <div class="map-toolbar">
       <div class="map-title">
         <van-icon name="cluster-o" />
-        <span class="title-text">故事云图</span>
+        <span class="title-text">段落关系图</span>
         <div class="grid-control">
           <van-checkbox v-model="useGrid" size="14px">网格吸附</van-checkbox>
         </div>
@@ -143,41 +143,40 @@ const configs = reactive({
 const eventHandlers = {
   // 1. 拖拽实时吸附
   "node:drag": (event) => {
-    const ids = Object.keys(event);
-    if (ids.length > 0) {
-      const nodeId = ids[0];
-      const { x, y } = event[nodeId];
-      if (useGrid.value) {
-        layouts.nodes[nodeId] = {
-          x: Math.round(x / gridSize) * gridSize,
-          y: Math.round(y / gridSize) * gridSize
-        };
+    if (!useGrid.value) return;
+
+    Object.entries(event).forEach(([nodeId, pos]) => {
+      const snappedX = Math.round(pos.x / gridSize) * gridSize;
+      const snappedY = Math.round(pos.y / gridSize) * gridSize;
+
+      // 强行把节点坐标拽到网格线上
+      if (layouts.nodes[nodeId]) {
+        layouts.nodes[nodeId].x = snappedX;
+        layouts.nodes[nodeId].y = snappedY;
       }
-    }
+    });
   },
 
   "node:dragend": (event) => {
+    Object.entries(event).forEach(([nodeId, pos]) => {
+      let finalX = pos.x;
+      let finalY = pos.y;
 
-    const ids = Object.keys(event);
-    
-    if (ids.length === 0) {
-      return;
-    }
+      if (useGrid.value) {
+        finalX = Math.round(pos.x / gridSize) * gridSize;
+        finalY = Math.round(pos.y / gridSize) * gridSize;
+        layouts.nodes[nodeId] = { x: finalX, y: finalY };
+      }
 
-    const nodeId = ids[0];
-    const pos = event[nodeId]; // 直接从事件里拿最新的坐标
-
-    // 从 props 里找对应的段落
-    const passage = props.passages.find(p => String(p.id) === String(nodeId));
-    if (passage && pos) {
-      const updatedItem = {
-        ...JSON.parse(JSON.stringify(passage)),
-        visualPos: { x: pos.x, y: pos.y }
-      };
-      
-      emit('updatePosition', updatedItem);
-    } else {
-    }
+      const passage = props.passages.find(p => String(p.id) === String(nodeId));
+      if (passage) {
+        const updatedItem = {
+          ...JSON.parse(JSON.stringify(passage)),
+          visualPos: { x: finalX, y: finalY }
+        };
+        emit('updatePosition', updatedItem);
+      }
+    });
   },
 
   "node:dblclick": (params) => {
@@ -212,8 +211,10 @@ const eventHandlers = {
 .grid-control { display: flex; align-items: center; border-left: 1px solid #444; padding-left: 12px; }
 .canvas-wrapper { flex: 1; background-color: #181818; position: relative; overflow: hidden; }
 .canvas-wrapper.show-grid {
+  /* 调整背景点点，让它和坐标系原点完美重合喵 */
   background-image: radial-gradient(#2a2a2a 1px, transparent 1px);
   background-size: 40px 40px;
+  background-position: 0 0; 
 }
 .map-footer {
   height: 30px; min-height: 30px; background: #252526; border-top: 1px solid #333;
