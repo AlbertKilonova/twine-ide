@@ -28,6 +28,13 @@
           @saveOnly="saveNow"  
           @update="handleRenameStory" 
         />
+        <AssetManager 
+          v-if="viewMode === 'assets'" 
+          :assets="assets"
+          @upload="handleAssetUpload"
+          @delete="removeAsset"
+          @rename="handleAssetRename"
+        />
       </aside>
     </transition>
 
@@ -77,7 +84,7 @@
 </template>
 
 <script setup>
-import { ref, onMounted, computed } from 'vue';
+import { ref, onMounted, computed, watch } from 'vue';
 import { showToast } from 'vant';
 
 // 组件与锦囊
@@ -88,12 +95,14 @@ import EditorTools from './components/EditorTools.vue';
 import EditorView from './components/EditorView.vue';
 import VisualMap from './components/VisualMap.vue';
 import ProjectSettings from './components/ProjectSettings.vue';
+import AssetManager from './components/AssetManager.vue';
 
 import { initDB } from './db/index';
 import { useStoryManager } from './composables/useStoryManager';
 import { useFileActions } from './composables/useFileActions';
 import { useEditorBridge } from './composables/useEditorBridge';
 import { useFormatManager } from './composables/useFormatManager';
+import { usePersistence } from './composables/usePersistence';
 
 // 状态
 const viewMode = ref('files');
@@ -102,21 +111,39 @@ const stories = ref([]);
 const allPassages = ref([]);
 const currentStoryId = ref(null);
 const currentFileId = ref(null);
+const currentStoryAssets = computed(() => assets.value.filter(a => a.storyId === currentStoryId.value));
 const editorViewRef = ref(null);
 const previewUrl = ref('');
 const isPreviewOpen = ref(false);
-let db = null;
+const assets = ref([]);
+const db = ref(null);
+
+const { syncAsset, removeAsset, renameAsset, loadAssets } = usePersistence(db, stories, allPassages, assets);
+
+watch(currentStoryId, async (newId) => {
+  if (newId) {
+    // 只要故事 ID 变了，阿波就去数据库里只捞这个 ID 的资源波！
+    await loadAssets(newId);
+  } else {
+    // 如果没有选中的故事，就把列表清空喵
+    assets.value = [];
+  }
+}, { immediate: true });
 
 const dbIntf = { 
-  getAll: (s) => db?.getAll(s),
-  putItem: (s, i) => db?.put(s, i),
+  getAll: (s) => db.value?.getAll(s),
+  putItem: (s, i) => db.value?.put(s, i),
   put: (s, i) => {
-    if (!db) { showToast('数据库还没准备好哦 awa'); return; }
-    return db.put(s, i);
+    if (!db.value) { showToast('数据库还没准备好哦 awa'); return; }
+    return db.value.put(s, i);
   },
   delete: (s, id) => {
-    if (!db) return;
-    return db.delete(s, id);
+    if (!db.value) return;
+    return db.value.delete(s, id);
+  },
+  transaction: (storeNames, mode) => {
+    if (!db.value) return;
+    return db.value.transaction(storeNames, mode);
   }
 };
 
@@ -136,9 +163,12 @@ onMounted(async () => {
     }
   }
 
-  db = await initDB();
-  stories.value = await db.getAll('stories');
-  allPassages.value = await db.getAll('passages');
+  const instance = await initDB();
+  db.value = instance;
+  await loadAssets();
+  
+  stories.value = await instance.getAll('stories');
+  allPassages.value = await instance.getAll('passages');
   if (stories.value.length > 0) currentStoryId.value = stories.value[0].id;
 });
 
@@ -252,6 +282,25 @@ const test = async () => {
 
 const handleBuild = () => {
   fileActions.handleBuild(currentStory.value, currentStoryFiles.value, formatMgr);
+};
+
+const handleAssetUpload = async (file) => {
+  if (!currentStoryId.value) {
+    showToast('请先选择或创建一个故事喵！');
+    return;
+  }
+  try {
+    // 上传时带上当前故事的 ID 波
+    await syncAsset(file, currentStoryId.value);
+    showToast('上传成功喵！');
+  } catch (e) {
+    showToast('上传失败了 xwx');
+  }
+};
+
+const handleAssetRename = async (id, newName) => {
+  await renameAsset(id, newName);
+  showToast('改名成功！');
 };
 
 </script>

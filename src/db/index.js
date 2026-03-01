@@ -1,7 +1,7 @@
 import { openDB } from 'idb';
 
 export const initDB = async () => {
-  return openDB('story_editor', 4, {
+  return openDB('story_editor', 5, {
     upgrade(db, oldVersion, newVersion) {
       console.log(`检测到数据库版本更新：${oldVersion} -> ${newVersion}`);
       
@@ -13,6 +13,9 @@ export const initDB = async () => {
       }
       if (!db.objectStoreNames.contains('custom_formats')) {
         db.createObjectStore('custom_formats', { keyPath: 'id' });
+      }
+      if (!db.objectStoreNames.contains('assets')) {
+        db.createObjectStore('assets', { keyPath: 'id' });
       }
     },
   });
