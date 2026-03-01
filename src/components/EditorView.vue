@@ -29,7 +29,8 @@ const props = defineProps({
   modelValue: String,
   lineWrapping: Boolean,
   relativeLineNumbers: Boolean,
-  activeFile: Object
+  activeFile: Object,
+  stories: Array
 });
 
 const emit = defineEmits(['update:modelValue', 'input']);
@@ -58,6 +59,12 @@ const extensions = computed(() => {
 
   const tags = props.activeFile?.tags || [];
 
+  const parentStory = props.stories?.find(s => s.id === props.activeFile?.storyId);
+  
+  // 2. 优先用故事定义的格式，如果没有（比如新故事），就默认 sugarcube 波
+  // 这里的 logic: 如果 parentStory.format 是空的，就给它个保底
+  const storyFormat = parentStory?.format || 'twee';
+  
   if (tags.includes('script')) {
     // 纯脚本模式波
     exts.push(javascript());
@@ -66,7 +73,7 @@ const extensions = computed(() => {
     exts.push(css());
   } else {
     // 默认的混合模式，用咱们那个全能的 twee() 喵！
-    exts.push(twee());
+    exts.push(twee(storyFormat.toLowerCase()));
   }
 
   if (props.lineWrapping) {

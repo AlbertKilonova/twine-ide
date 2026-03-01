@@ -54,6 +54,7 @@
         ref="editorViewRef"
         v-model="activeFile.content"
         :activeFile="activeFile"
+        :stories="stories"
         :lineWrapping="currentStory?.settings?.lineWrapping"
         :relativeLineNumbers="currentStory?.settings?.relativeLineNumbers"
         @update:modelValue="val => activeFile.content = val"
