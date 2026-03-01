@@ -13,6 +13,18 @@ export default defineConfig({
     build: {
         chunkSizeWarningLimit: 1500,
     },
+    server: {
+        headers: {
+            'Cross-Origin-Opener-Policy': 'same-origin',
+            'Cross-Origin-Embedder-Policy': 'require-corp'
+        },
+        fs: {
+            allow: ['..']
+        }
+    },
+    optimizeDeps: {
+        exclude: ['tweers-core']
+    },
     plugins: [
         vue(),
         VitePWA({
@@ -52,9 +64,9 @@ export default defineConfig({
             },
             workbox: {
                 cacheId: `twine-ide-${pkg.version}`,
-                globPatterns: ['**/*.{js,css,html,png,svg,ico}']
+                globPatterns: ['**/*.{js,css,html,png,svg,ico,wasm}']
             }
         })
     ],
-    assetsInclude: ['**/*.svg', '**/LICENSE'],
+    assetsInclude: ['**/*.svg', '**/LICENSE', '**/*.wasm'],
 })
