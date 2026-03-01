@@ -13,6 +13,36 @@ export function useFileActions(db, stories, allPassages, currentStoryId) {
     a.download = name;
     a.click();
   };
+  
+  const _coreBuild = async (story, passages, formatMgr, isDebug) => {
+    const storyData = {
+      ifid: story.ifid,
+      format: story.format,
+      "format-version": story.formatVersion,
+      start: passages.find(p => p.isStart)?.name || passages?.name || 'Start'
+    };
+    
+    let tweeSource = `:: StoryData\n${JSON.stringify(storyData, null, 2)}\n\n`;
+    tweeSource += `:: StoryTitle\n${story.name}\n\n`;
+    passages.forEach(p => {
+      const tags = (p.tags && p.tags.length) ? ` [${p.tags.join(' ')}]` : '';
+      tweeSource += `:: ${p.name}${tags}\n${p.content}\n\n`;
+    });
+    
+    const id = `${story.format.toLowerCase()}-${story.formatVersion}`;
+    const rawFormatCode = await formatMgr.getRawCode(id);
+      
+    const mod = await import('tweers-core');
+    return mod.build({
+      sources: [{ type: 'text', name: 'compile.tw', content: tweeSource }],
+      format_info: {
+        name: story.format,
+        version: story.formatVersion,
+        source: rawFormatCode
+      },
+      is_debug: isDebug
+    });
+  };
 
   // --- Twee 转义逻辑 ---
   const escapeForTweeHeader = (value) => value.replace(/\\/g, '\\\\').replace(/([[\]{}])/g, '\\$1');
@@ -225,104 +255,61 @@ export function useFileActions(db, stories, allPassages, currentStoryId) {
     input.click();
   };
   
-  const handlePreview = async (story, passages, formatMgr) => {
-    if (!story || passages.length === 0) {
-      showToast('没有段落可以预览喵 xwx');
-      return;
-    }
-
+  const handlePreview = async (story, passages, formatMgr, isDebug = false) => {
     try {
-      showToast('tweers正在编译你的故事... (。•ω•。)');
-
-      // --- 1. 准备 Twee 源码 ---
-      // 构造 StoryData
-      const storyData = {
-        ifid: story.ifid,
-        format: story.format,
-        "format-version": story.formatVersion,
-        start: passages.find(p => p.isStart)?.name || passages[0]?.name || 'Start'
-      };
-
-      let tweeSource = `:: StoryData\n${JSON.stringify(storyData, null, 2)}\n\n`;
-      tweeSource += `:: StoryTitle\n${story.name}\n\n`;
-
-      passages.forEach(p => {
-        const tags = (p.tags && p.tags.length) ? ` [${p.tags.join(' ')}]` : '';
-        tweeSource += `:: ${p.name}${tags}\n${p.content}\n\n`;
-      });
-
-      // --- 2. 获取故事格式的【原始JS源码】 ---
-      // 重点：tweers-core 的 build 必须在 source 里看到 window.storyFormat
-      const id = `${story.format.toLowerCase()}-${story.formatVersion}`;
-      let rawFormatCode = "";
-
-      // A. 先去私人衣橱（数据库）里翻翻
-      const di = unref(db);
-      if (di && di.getAll) {
-        try {
-          const customs = await di.getAll('custom_formats');
-          const found = customs.find(c => c.id === `custom-${id}`);
-          if (found && found.raw) {
-            rawFormatCode = found.raw;
-          }
-        } catch (e) { console.warn("自定义故事格式获取失败", e); }
-      }
-
-      // B. 如果私人衣橱没有，去公共衣橱（系统资源）里翻翻
-      if (!rawFormatCode && formatMgr) {
-        // 波波，请确保在 useFormatManager 里加一个 getRawLoader 方法喵！
-        // 或者这里通过 formatMgr 暴露的 loaders 直接加载
-        try {
-          rawFormatCode = await formatMgr.getRawCode(id);
-        } catch (e) { console.warn("本地故事格式获取失败", e); }
-      }
-
-      if (!rawFormatCode) {
-        throw new Error(`找不到格式 ${story.format} 的原始源码OAO！`);
-      }
-
-      // --- 3. 召唤编译引擎 ---
-      const mod = await import('tweers-core');
-      
-      // 检查 WASM 是否初始化（这步波波如果已经在 onMounted 做过了可以略过喵）
-      // if (!mod.isInitialized) { ... } 
-
-      const config = {
-        sources: [{ type: 'text', name: 'preview.tw', content: tweeSource }],
-        format_info: {
-          name: story.format,
-          version: story.formatVersion,
-          source: rawFormatCode // 这里必须是包含 window.storyFormat 的原始 JS 喵！
-        }
-      };
-
-      // 编译！
-      const result = mod.build(config);
-
-      // --- 4. 开启新窗口展示 ---
+      // 1. 调用刚才我们拆出来的核心编译函数喵
+      const result = await _coreBuild(story, passages, formatMgr, isDebug);
       const blob = new Blob([result.html], { type: 'text/html' });
       const url = URL.createObjectURL(blob);
-
+    
+      // 2. 环境适配逻辑放在这里波！
       const isApk = import.meta.env.VITE_BUILD_TARGET === 'apk';      
-
+    
       if (isApk) {
-        // 如果是 APK，我们把 URL 传回给 App.vue
+        // 如果是 APK 环境，我们不直接开新窗口，而是把 URL 丢给 App.vue
+        // 让 App.vue 去更新 previewUrl 并打开弹窗喵
         return url; 
       } else {
-        // 如果是浏览器，直接开新标签
+        // 如果是普通浏览器环境，直接弹出新标签页波
         const win = window.open(url, '_blank');
         if (!win) {
-          showToast('预览被浏览器拦截了喵 xwx');
+          showToast('预览被浏览器拦截了喵，请允许弹出窗口波 xwx');
         } else {
           showToast('预览准备就绪！即将跳转喵！');
         }
-        return null;
+        return null; // 浏览器模式下不需要 App.vue 再做处理了喵
       }
-
     } catch (err) {
       console.error("预览失败喵:", err);
-      showToast(`预览失败喵: ${err.message}`);
+      showToast(`预览失败: ${err.message}`);
+      return null;
     }
   };
-  return { handleExport, handleImportFile, generateUUID, escapeForTweeHeader, escapeForTweeText, unescapeForTweeHeader, unescapeForTweeText, handlePreview };
+
+  const handleBuild = async (story, passages, formatMgr) => {
+    try {
+      showLoadingToast({ message: '正在构建 HTML...', forbidClick: true });
+        
+      // 直接调用核心编译，不经过预览的 URL 生成逻辑喵
+      const result = await _coreBuild(story, passages, formatMgr, false);
+        
+      const blob = new Blob([result.html], { type: 'text/html' });
+      const fileName = `${story.name || 'MyStory'}.html`;
+      
+      // 触发下载喵！
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = fileName;
+      a.click();
+      
+      setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+      closeToast();
+      showToast('构建成功！文件已保存波喵~');
+    } catch (err) {
+      closeToast();
+      showToast(`构建失败: ${err.message}`);
+    }
+  };
+  
+  return { handleExport, handleImportFile, generateUUID, escapeForTweeHeader, escapeForTweeText, unescapeForTweeHeader, unescapeForTweeText, handlePreview, handleBuild };
 }

@@ -9,18 +9,18 @@
           <van-button block size="small" icon="play-circle-o" class="vscode-btn primary" @click="$emit('preview')">
             浏览器预览 (Run)
           </van-button>
-          <van-button block size="small" icon="aim" class="vscode-btn" @click="$emit('test')" disabled>
-            运行测试 (Test)
+          <van-button block size="small" icon="aim" class="vscode-btn" @click="$emit('test')">
+            运行测试 (Debug)
           </van-button>
         </div>
       </section>
 
       <section class="action-section">
         <div class="section-title">编译</div>
-        <van-button block size="small" icon="certificate" class="vscode-btn" @click="$emit('build')" disabled>
+        <van-button block size="small" icon="certificate" class="vscode-btn" @click="$emit('build')">
           开始构建 HTML (Build)
         </van-button>
-        <p class="build-tip">将使用项目管理页设置的格式进行编译波~</p>
+        <p class="build-tip">将使用项目管理页设置的格式进行编译~</p>
       </section>
 
       <section class="action-section">

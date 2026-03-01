@@ -18,7 +18,7 @@
           @renameStory="handleRenameStory" @setStart="handleSetStart"
           @importStory="handleImportFile"
         />
-        <ExportPanel v-if="viewMode === 'export'" :storyName="currentStoryName" :count="currentStoryFiles.length" @preview="preview" @doExport="handleExport" />
+        <ExportPanel v-if="viewMode === 'export'" :storyName="currentStoryName" :count="currentStoryFiles.length" @preview="preview" @test="test" @build="handleBuild" @doExport="handleExport" />
         <ProjectSettings 
           :key="currentStory?.id"
           v-if="viewMode === 'project'" 
@@ -177,13 +177,6 @@ const handleDeleteFolder = (n) => storyMgr.handleDeleteFolder(n, currentStory.va
 const handleExport = (type) => fileActions.handleExport(type, currentStoryName.value, currentStory.value, currentStoryFiles.value);
 const handleImportFile = () => fileActions.handleImportFile((id) => { currentStoryId.value = id; viewMode.value = 'files'; });
 
-const handleBuild = () => {
-  showToast('编译器正在热锅中，请稍后喵 awa');
-};
-const handleTest = () => {
-  showToast('测试模块还没准备好波 xwx');
-};
-
 // --- 传送逻辑 ---
 const handleJump = (id) => {
   if (!id) return;
@@ -243,6 +236,19 @@ const closePreview = () => {
   }
   isPreviewOpen.value = false;
   previewUrl.value = '';
+};
+
+const test = async () => {
+  // 传 true 进去开启 Debug 模式喵
+  const url = await fileActions.handlePreview(currentStory.value, currentStoryFiles.value, formatMgr, true);
+  if (url) {
+    previewUrl.value = url;
+    isPreviewOpen.value = true;
+  }
+};
+
+const handleBuild = () => {
+  fileActions.handleBuild(currentStory.value, currentStoryFiles.value, formatMgr);
 };
 
 </script>
