@@ -33,14 +33,14 @@ const props = defineProps(['format']);
 const emit = defineEmits(['insert']);
 
 // 1. 基础常用符号（无论什么格式都显示的）
-const commonPrimary = ['[[', ']]', '|', '$', '->', '<-'];
+const commonPrimary = ['[[', ']]', '|', '$', '_', '->', '<-'];
 
 // 2. 格式专属的特有符号
 const specificSymbols = {
   'SugarCube': ['<<', '>>', '<<set ', '<<if '],
   'Harlowe': ['(', ')', ':', 'set:', 'if:', '"', '…', '<', '>'],
-  'Chapbook': ['{', '}'],
-  'Snowman': [],
+  'Chapbook': ['[', ']', '{', '}', ':', '--', '[if'],
+  'Snowman': ['<%', '%>', '<%=', 'print(', '0', '-'],
   'default': ['(', ')'] // 默认给个小括号喵
 };
 
