@@ -47,7 +47,7 @@
         </div>
       </div>
 
-      <EditorTools @insert="onInsert" />
+      <EditorTools :format="currentStory?.format" @insert="onInsert" />
 
       <EditorView 
         v-if="activeFile"

@@ -26,15 +26,38 @@
 </template>
 
 <script setup>
-import { showToast } from 'vant'; // 如果波波想在长按时提示的话
+import { computed } from 'vue';
+import { showToast } from 'vant';
 
+const props = defineProps(['format']);
 const emit = defineEmits(['insert']);
 
-// 分成两个数组，方便给不同的样式波
-const primarySymbols = ['[[', ']]', '<<', '>>', '->', '<-', '|'];
+// 1. 基础常用符号（无论什么格式都显示的）
+const commonPrimary = ['[[', ']]', '|', '$', '->', '<-'];
+
+// 2. 格式专属的特有符号
+const specificSymbols = {
+  'SugarCube': ['<<', '>>', '<<set ', '<<if '],
+  'Harlowe': ['(', ')', ':', 'set:', 'if:', '"', '…', '<', '>'],
+  'Chapbook': ['{', '}'],
+  'Snowman': [],
+  'default': ['(', ')'] // 默认给个小括号喵
+};
+
+const primarySymbols = computed(() => {
+  const formatKey = Object.keys(specificSymbols).find(key => 
+    props.format?.toLowerCase().includes(key.toLowerCase())
+  ) || 'default';
+  
+  const specific = specificSymbols[formatKey];
+  // 把专属的塞到最前面喵
+  return [...specific, ...commonPrimary];
+});
+
 const secondarySymbols = [
-  ':: ', '/', '+', '-', '*', '=',
-  '<', '>', '"', "'", ';',
+  '/', '+', '-', '*', '=', '%',
+  '==', '!=', '>', '<', '>=', '<=',
+  '<', '>', '"', "'", ':', ';',
   '\\', '(', ')', '[', ']', '{', '}'
 ];
 
@@ -45,7 +68,6 @@ const displayMap = {
 const getDisplay = (symbol) => displayMap[symbol] || symbol;
 
 const onInsert = (t) => {
-  // 如果在手机端，尝试触发微小震动喵！
   if (window.navigator && window.navigator.vibrate) {
     window.navigator.vibrate(10); 
   }
@@ -54,7 +76,6 @@ const onInsert = (t) => {
 </script>
 
 <style scoped>
-/* 外层容器，处理阴影和背景喵 */
 .tools-container {
   background: #252526;
   border-bottom: 1px solid #333;
