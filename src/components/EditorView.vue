@@ -16,16 +16,20 @@
 <script setup>
 import { ref, watch, computed } from 'vue';
 import { Codemirror } from 'vue-codemirror';
-import { markdown } from '@codemirror/lang-markdown';
 import { oneDark } from '@codemirror/theme-one-dark';
 import { undo, redo } from '@codemirror/commands';
-import { EditorView, lineNumbers } from '@codemirror/view'; // 合并引入喵
+import { EditorView, lineNumbers } from '@codemirror/view';
 
-// 1. Props 接收设置
+// 引入高亮三件套和我们的 Twee 喵
+import { twee } from '../utils/twee-syntax';
+import { javascript } from '@codemirror/lang-javascript';
+import { css } from '@codemirror/lang-css';
+
 const props = defineProps({
   modelValue: String,
   lineWrapping: Boolean,
-  relativeLineNumbers: Boolean
+  relativeLineNumbers: Boolean,
+  activeFile: Object
 });
 
 const emit = defineEmits(['update:modelValue', 'input']);
@@ -33,15 +37,13 @@ const emit = defineEmits(['update:modelValue', 'input']);
 const code = ref(props.modelValue);
 const view = ref(null);
 
-// --- 2. 核心逻辑：合并所有扩展配置 ---
+// --- 核心逻辑：变量名一定要统一喵！ ---
 const extensions = computed(() => {
+  // 我们统一用 exts 这个名字波
   const exts = [
-    // 动态行号配置喵
     lineNumbers({
       formatNumber: (line, state) => {
         if (!props.relativeLineNumbers) return line.toString();
-        
-        // 计算相对行号：当前行显示绝对值，其他显示差值
         try {
           const cursorLine = state.doc.lineAt(state.selection.main.head).number;
           if (line === cursorLine) return line.toString();
@@ -51,11 +53,22 @@ const extensions = computed(() => {
         }
       }
     }),
-    markdown(),
     oneDark,
   ];
 
-  // 自动换行开关
+  const tags = props.activeFile?.tags || [];
+
+  if (tags.includes('script')) {
+    // 纯脚本模式波
+    exts.push(javascript());
+  } else if (tags.includes('stylesheet')) {
+    // 纯样式模式波
+    exts.push(css());
+  } else {
+    // 默认的混合模式，用咱们那个全能的 twee() 喵！
+    exts.push(twee());
+  }
+
   if (props.lineWrapping) {
     exts.push(EditorView.lineWrapping);
   }
@@ -63,8 +76,7 @@ const extensions = computed(() => {
   return exts;
 });
 
-// --- 3. 基础函数 ---
-
+// --- 基础函数保持不变喵 ---
 watch(() => props.modelValue, (newVal) => {
   if (newVal !== code.value) {
     code.value = newVal;
@@ -104,13 +116,21 @@ defineExpose({ insertText, undo: handleUndo, redo: handleRedo });
   width: 100%;
   height: 100%;
   overflow: hidden;
-  background: #282c34; /* One Dark 背景色 */
+  background: #282c34;
 }
-/* 深度调整 CM6 的内部样式，让它更契合 VSCode 风格喵 */
 :deep(.cm-editor) {
   outline: none !important;
 }
 :deep(.cm-scroller) {
   font-family: 'Fira Code', 'Consolas', monospace !important;
 }
+:deep(.cm-header) {
+  color: #fac863 !important; /* 暖黄色 */
+  font-weight: bold;
+  background: rgba(255, 255, 255, 0.05); /* 给标题行加个淡淡的底色，更有存在感喵 */
+  display: inline-block;
+  width: 100%;
+}
+:deep(.cm-angleBracket) { color: #56b6c2 !important; } /* 尖括号颜色 */
+:deep(.cm-tagName) { color: #e06c75 !important; }      /* 标签名颜色 */
 </style>

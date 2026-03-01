@@ -53,8 +53,10 @@
         v-if="activeFile"
         ref="editorViewRef"
         v-model="activeFile.content"
+        :activeFile="activeFile"
         :lineWrapping="currentStory?.settings?.lineWrapping"
         :relativeLineNumbers="currentStory?.settings?.relativeLineNumbers"
+        @update:modelValue="val => activeFile.content = val"
         @input="onEditorInput"
       />
       <van-empty v-else description="选择一个段落开始编辑" />
