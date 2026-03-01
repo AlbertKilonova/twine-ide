@@ -53,6 +53,8 @@
         v-if="activeFile"
         ref="editorViewRef"
         v-model="activeFile.content"
+        :lineWrapping="currentStory?.settings?.lineWrapping"
+        :relativeLineNumbers="currentStory?.settings?.relativeLineNumbers"
         @input="onEditorInput"
       />
       <van-empty v-else description="选择一个段落开始编辑" />
@@ -217,10 +219,6 @@ const saveNow = async () => {
   if (currentStory.value) {
     handleUpdateItem(currentStory.value); // 这里的 handleUpdateItem 会自动识别这是故事喵
     hasSaved = true;
-  }
-
-  if (hasSaved) {
-    showToast('全部存好啦！波波最棒了喵~');
   }
 };
 

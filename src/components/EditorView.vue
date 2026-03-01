@@ -1,93 +1,116 @@
 <template>
   <div class="editor-container">
-    <div class="line-numbers" ref="lineNumsRef">
-      <div v-for="n in lineCount" :key="n" class="ln-item">{{ n }}</div>
-    </div>
-
-    <div class="editor-scroll-area" ref="scrollBoxRef" @scroll="syncScroll">
-      <div class="editor-content-wrapper">
-        <div class="highlighter-layer">
-          <div v-for="(line, idx) in editorLines" :key="idx" 
-               :class="['line-text', { 'header-highlight': line.startsWith('::') }]">
-            {{ line }}&nbsp;
-          </div>
-        </div>
-        <textarea 
-          ref="textareaRef"
-          :value="modelValue" 
-          class="real-textarea" 
-          spellcheck="false"
-          wrap="off"
-          @input="handleInput"
-        ></textarea>
-      </div>
-    </div>
+    <codemirror
+      v-model="code"
+      :style="{ height: '100%', width: '100%' }"
+      :autofocus="true"
+      :indent-with-tab="true"
+      :tab-size="2"
+      :extensions="extensions"
+      @ready="handleReady"
+      @change="onCodeChange"
+    />
   </div>
 </template>
 
 <script setup>
-import { ref, computed } from 'vue';
+import { ref, watch, computed } from 'vue';
+import { Codemirror } from 'vue-codemirror';
+import { markdown } from '@codemirror/lang-markdown';
+import { oneDark } from '@codemirror/theme-one-dark';
+import { undo, redo } from '@codemirror/commands';
+import { EditorView, lineNumbers } from '@codemirror/view'; // 合并引入喵
 
-const props = defineProps(['modelValue']);
+// 1. Props 接收设置
+const props = defineProps({
+  modelValue: String,
+  lineWrapping: Boolean,
+  relativeLineNumbers: Boolean
+});
+
 const emit = defineEmits(['update:modelValue', 'input']);
 
-const textareaRef = ref(null);
-const scrollBoxRef = ref(null);
-const lineNumsRef = ref(null);
+const code = ref(props.modelValue);
+const view = ref(null);
 
-// 计算行数
-const editorLines = computed(() => props.modelValue?.split('\n') || []);
-const lineCount = computed(() => editorLines.value.length || 1);
+// --- 2. 核心逻辑：合并所有扩展配置 ---
+const extensions = computed(() => {
+  const exts = [
+    // 动态行号配置喵
+    lineNumbers({
+      formatNumber: (line, state) => {
+        if (!props.relativeLineNumbers) return line.toString();
+        
+        // 计算相对行号：当前行显示绝对值，其他显示差值
+        try {
+          const cursorLine = state.doc.lineAt(state.selection.main.head).number;
+          if (line === cursorLine) return line.toString();
+          return Math.abs(line - cursorLine).toString();
+        } catch (e) {
+          return line.toString();
+        }
+      }
+    }),
+    markdown(),
+    oneDark,
+  ];
 
-// 同步滚动
-const syncScroll = () => {
-  if (scrollBoxRef.value && lineNumsRef.value) {
-    lineNumsRef.value.scrollTop = scrollBoxRef.value.scrollTop;
+  // 自动换行开关
+  if (props.lineWrapping) {
+    exts.push(EditorView.lineWrapping);
   }
+
+  return exts;
+});
+
+// --- 3. 基础函数 ---
+
+watch(() => props.modelValue, (newVal) => {
+  if (newVal !== code.value) {
+    code.value = newVal;
+  }
+});
+
+const handleReady = (payload) => {
+  view.value = payload.view;
 };
 
-// 处理输入
-const handleInput = (e) => {
-  emit('update:modelValue', e.target.value);
-  setTimeout(() => {
-    el.focus();
-    const newPos = start + str.length;
-    el.setSelectionRange(newPos, newPos);
-    
-    // 触发外部可能需要的同步逻辑
-    emit('input');
-  }, 0);
+const onCodeChange = (val) => {
+  emit('update:modelValue', val);
+  emit('input'); 
 };
 
-// 暴露插入文字的能力给波波用
-const insertText = (str) => {
-  const el = textareaRef.value;
-  if (!el) return;
-  const start = el.selectionStart;
-  const end = el.selectionEnd;
-  const val = props.modelValue || '';
-  const newVal = val.slice(0, start) + str + val.slice(end);
-  
-  emit('update:modelValue', newVal);
-  // 必须要在 DOM 更新后触发同步逻辑
-  setTimeout(() => emit('input'), 0);
+const handleUndo = () => view.value && undo(view.value);
+const handleRedo = () => view.value && redo(view.value);
+
+const insertText = (text) => {
+  if (!view.value) return;
+  const { state } = view.value;
+  const range = state.selection.main;
+  view.value.dispatch({
+    changes: { from: range.from, to: range.to, insert: text },
+    selection: { anchor: range.from + text.length },
+    scrollIntoView: true
+  });
+  view.value.focus();
 };
 
-defineExpose({ insertText });
+defineExpose({ insertText, undo: handleUndo, redo: handleRedo });
 </script>
 
 <style scoped>
-.editor-container { flex: 1; display: flex; overflow: hidden; position: relative; font-family: 'Fira Code', monospace; }
-.line-numbers { width: 45px; background: #1e1e1e; color: #858585; text-align: right; padding: 10px 10px 10px 0; font-size: 12px; line-height: 22px; user-select: none; border-right: 1px solid #333; overflow: hidden; }
-.editor-scroll-area { flex: 1; overflow: auto; position: relative; }
-.editor-content-wrapper { min-width: 100%; display: inline-block; position: relative; min-height: 100%; }
-.real-textarea, .highlighter-layer { 
-  width: 100%; height: 100%; padding: 10px; border: none; outline: none; 
-  font-size: 14px; line-height: 22px; font-family: inherit; white-space: pre; 
-  overflow: hidden; box-sizing: border-box; display: block;
+.editor-container {
+  flex: 1;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  background: #282c34; /* One Dark 背景色 */
 }
-.real-textarea { position: absolute; top: 0; left: 0; background: transparent; color: transparent; caret-color: #aeafad; resize: none; z-index: 2; }
-.highlighter-layer { position: relative; background: #1e1e1e; color: #d4d4d4; z-index: 1; pointer-events: none; }
-.header-highlight { color: #569cd6; font-weight: bold; }
-.ln-item { height: 22px; }
+/* 深度调整 CM6 的内部样式，让它更契合 VSCode 风格喵 */
+:deep(.cm-editor) {
+  outline: none !important;
+}
+:deep(.cm-scroller) {
+  font-family: 'Fira Code', 'Consolas', monospace !important;
+}
 </style>
