@@ -73,7 +73,7 @@ export function useFileActions(db, stories, allPassages, currentStoryId, assets)
       for (var i = 0; i < passages.length; i++) {
         if (passages[i].isStart) { startP = passages[i]; break; }
       }
-      if (!startP) startP = passages;
+      if (!startP) startP = passages[0];
     }
     if (!startP) startP = { name: 'Start' };
 
@@ -185,7 +185,7 @@ export function useFileActions(db, stories, allPassages, currentStoryId, assets)
     sections.forEach(function(sec) {
       var lines = sec.split(/\r?\n/);
       if (lines.length === 0) return;
-      var headerLine = lines.trim();
+      var headerLine = lines[0].trim();
       var content = lines.slice(1).join('\n').trim();
       if (!headerLine) return;
       if (headerLine === 'StoryTitle') {
@@ -198,8 +198,8 @@ export function useFileActions(db, stories, allPassages, currentStoryId, assets)
         } catch (e) { console.warn("StoryData解析失败"); }
       } else {
         var match = headerLine.match(/^([^\[\{]+)(?:\s*\[(.*?)\])?(?:\s*\{.*?\})?/);
-        var name = match ? match.trim() : headerLine;
-        var tags = (match && match) ? match.split(/\s+/).filter(function(t) { return t; }).map(unescapeForTweeHeader) : [];
+        var name = match ? match[1].trim() : headerLine;
+        var tags = (match && match[2]) ? match[2].split(/\s+/).filter(function(t) { return t; }).map(unescapeForTweeHeader) : [];
         items.push({ 
           name: unescapeForTweeHeader(name), 
           tags: tags,
@@ -225,7 +225,9 @@ export function useFileActions(db, stories, allPassages, currentStoryId, assets)
             fIfid = generateUUID(), 
             fStart = null, 
             ps = [], 
-            fRawMeta = {};
+            fRawMeta = {},
+            zipAssets = [],
+            zipFolders = [];
 
         if (file.name.endsWith('.html')) {
           const htmlText = await file.text();
@@ -276,14 +278,31 @@ export function useFileActions(db, stories, allPassages, currentStoryId, assets)
           }
         } else if (file.name.endsWith('.zip')) {
           const zip = await JSZip.loadAsync(file);
-          const files = Object.keys(zip.files).filter(name => name.endsWith('.twee') || name.endsWith('.txt'));
-          for (const name of files) {
+          const tweeFiles = Object.keys(zip.files).filter(name => name.endsWith('.twee') || name.endsWith('.txt'));
+          const folderSet = new Set();
+          for (const name of tweeFiles) {
             const res = parseTwee(await zip.files[name].async("string"));
             if (res.meta.title) fTitle = res.meta.title;
             if (res.meta.ifid) fIfid = res.meta.ifid;
             fRawMeta = { ...fRawMeta, ...res.meta.rawData };
+            // 从路径中提取文件夹归属：passages/folder/name.twee → folder
+            const parts = name.replace(/\\/g, '/').split('/');
+            let folder = null;
+            if (parts.length >= 3 && parts[0] === 'passages') {
+              folder = parts.slice(1, parts.length - 1).join('/');
+              folderSet.add(folder);
+            }
+            res.items.forEach(item => { item.folder = folder; });
             ps.push(...res.items);
           }
+          // 导入 assets/ 目录下的资源文件
+          const assetFiles = Object.keys(zip.files).filter(name => name.startsWith('assets/') && !zip.files[name].dir);
+          for (const name of assetFiles) {
+            const blob = await zip.files[name].async("blob");
+            const assetName = name.replace(/^assets\//, '');
+            zipAssets.push({ name: assetName, blob });
+          }
+          zipFolders = Array.from(folderSet);
         } else {
           const res = parseTwee(await file.text());
           fTitle = res.meta.title || fTitle;
@@ -295,12 +314,12 @@ export function useFileActions(db, stories, allPassages, currentStoryId, assets)
         const newS = { 
           id: Date.now().toString(), 
           name: fTitle, 
-          folders: [], 
+          folders: zipFolders, 
           ifid: fIfid, 
           format: fRawMeta.format || "", 
           formatVersion: fRawMeta['format-version'] || "",
           zoom: fRawMeta.zoom || 1,
-          extraMetadata: {} // 脚本和样式已经拿走，这里变干净了喵！
+          extraMetadata: {}
         };
         
         await db.put('stories', JSON.parse(JSON.stringify(newS)));
@@ -313,12 +332,41 @@ export function useFileActions(db, stories, allPassages, currentStoryId, assets)
             storyId: newS.id, 
             name: p.name, 
             tags: p.tags || [], 
-            folder: null, 
+            folder: p.folder || null, 
             content: p.content, 
             isStart 
           };
           await db.put('passages', JSON.parse(JSON.stringify(newP)));
           allPassages.value.push(newP);
+        }
+
+        // 导入 zip 中的资源文件（Blob 不能 JSON 序列化，直接存入 IndexedDB）
+        const extMimeMap = {
+          png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg', gif: 'image/gif',
+          webp: 'image/webp', svg: 'image/svg+xml', bmp: 'image/bmp', ico: 'image/x-icon',
+          mp3: 'audio/mpeg', wav: 'audio/wav', ogg: 'audio/ogg', mp4: 'video/mp4',
+          webm: 'video/webm', json: 'application/json', txt: 'text/plain',
+          css: 'text/css', js: 'application/javascript', html: 'text/html',
+          ttf: 'font/ttf', woff: 'font/woff', woff2: 'font/woff2'
+        };
+        for (const a of zipAssets) {
+          const ext = a.name.split('.').pop().toLowerCase();
+          const mimeType = a.blob.type || extMimeMap[ext] || 'application/octet-stream';
+          const typedBlob = new Blob([a.blob], { type: mimeType });
+          const id = "asset_" + Date.now() + "_" + Math.random().toString(36).substr(2, 4);
+          const assetData = {
+            id,
+            storyId: newS.id,
+            name: a.name,
+            type: mimeType,
+            size: typedBlob.size,
+            data: typedBlob,
+            createdAt: Date.now()
+          };
+          await db.put('assets', assetData);
+          if (assets) {
+            assets.value.push({ ...assetData, url: URL.createObjectURL(typedBlob) });
+          }
         }
 
         closeToast();
@@ -337,7 +385,7 @@ export function useFileActions(db, stories, allPassages, currentStoryId, assets)
   const handleExport = async function(type, currentStoryName, currentStory, currentStoryFiles) {
     if (!currentStoryFiles || currentStoryFiles.length === 0) { showToast('空的喵'); return; }
     var zip = type === 'zip' ? new JSZip() : null;
-    var startP = currentStoryFiles.find(function(f) { return f.isStart; }) || currentStoryFiles;
+    var startP = currentStoryFiles.find(function(f) { return f.isStart; }) || currentStoryFiles[0];
     var storyTitle = ":: StoryTitle\n" + currentStoryName + "\n\n";
     var storyData = ":: StoryData\n" + JSON.stringify({ ifid: currentStory.ifid || generateUUID(), format: currentStory.format || "", "format-version": currentStory.formatVersion || "", start: startP.name || "Start", zoom: currentStory.zoom || 1 }, null, 2) + "\n\n";
 

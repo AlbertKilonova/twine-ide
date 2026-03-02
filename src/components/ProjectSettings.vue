@@ -221,7 +221,7 @@ const handleFormatChange = () => {
 };
 
 const onFormatFileChange = async (e) => {
-  const file = e.target.files;
+  const file = e.target.files[0];
   if (file && props.formatMgr) {
     await props.formatMgr.uploadFormat(file);
     e.target.value = ''; 

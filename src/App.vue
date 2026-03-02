@@ -101,6 +101,7 @@ import { initDB } from './db/index';
 import { useStoryManager } from './composables/useStoryManager';
 import { useFileActions } from './composables/useFileActions';
 import { useEditorBridge } from './composables/useEditorBridge';
+import { unescapeHeader as unescapeTwee, escapeHeader as escapeTwee } from './utils/tweeUtils';
 import { useFormatManager } from './composables/useFormatManager';
 import { usePersistence } from './composables/usePersistence';
 
@@ -151,7 +152,7 @@ const formatMgr = useFormatManager(dbIntf);
 const storyMgr = useStoryManager(stories, allPassages, currentStoryId, currentFileId, dbIntf);
 const fileActions = useFileActions(dbIntf, stories, allPassages, currentStoryId, assets);
 const activeFile = computed(() => allPassages.value.find(p => p.id === currentFileId.value));
-const { syncData, currentPassageTags, addTag, removeTag } = useEditorBridge(activeFile, storyMgr.handleUpdateItem);
+const { syncData, currentPassageTags, addTag, removeTag } = useEditorBridge(activeFile, storyMgr.handleUpdateItem, unescapeTwee, escapeTwee);
 
 onMounted(async () => {
   const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
