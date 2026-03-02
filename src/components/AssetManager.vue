@@ -11,7 +11,7 @@
     </div>
 
     <div class="syntax-hint">
-      引用语法：<span>@{文件名}</span>
+      引用语法：<span>assets/文件名</span>
     </div>
 
     <div class="asset-list scrollable">

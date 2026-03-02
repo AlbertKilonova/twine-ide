@@ -1,6 +1,7 @@
 import { showToast, showLoadingToast, closeToast } from 'vant'; 
 import JSZip from 'jszip';
 import { minify } from 'terser';
+import interceptorRaw from '../utils/asset-interceptor.js?raw';
 
 export function useFileActions(db, stories, allPassages, currentStoryId, assets) {
   
@@ -27,21 +28,6 @@ export function useFileActions(db, stories, allPassages, currentStoryId, assets)
   const unescapeForTweeHeader = function(v) { return (v || "").replace(/\\([[\]{}])/g, '$1').replace(/\\\\/g, '\\'); };
   const unescapeForTweeText = function(v) { return (v || "").replace(/^\\:/gm, ':'); };
 
-  // --- 资源路径处理 ---
-  const processAssetLinks = function(content, isPreview, isBase64, base64Map) {
-    if (!content) return "";
-    var assetList = (assets && assets.value) ? assets.value : [];
-    return content.replace(/@\{([^}]+)\}/g, function(match, fileName) {
-      if (isBase64 && base64Map && base64Map[fileName]) return base64Map[fileName];
-      var asset = null;
-      for (var i = 0; i < assetList.length; i++) {
-        if (assetList[i].name === fileName) { asset = assetList[i]; break; }
-      }
-      if (!asset) return match; 
-      return isPreview ? asset.url : "assets/" + fileName;
-    });
-  };
-  
   // 这是一个专门用来把 URL 数组转换成 HTML 标签字符串的内部魔法波
   const buildResourceTags = (cdns) => {
     if (!cdns || !Array.isArray(cdns)) return { styles: '', scripts: '' };
@@ -89,12 +75,12 @@ export function useFileActions(db, stories, allPassages, currentStoryId, assets)
     
     passages.forEach(function(p) {
       var contentStr = p.content || "";
-      var processedContent = processAssetLinks(contentStr, isPreview, isBase64, base64Map);
-      if (processedContent.trim().indexOf('::') === 0) {
-        tweeSource += processedContent + "\n\n";
+      // 不再做 @{} 替换，保持原样，用户直接写 assets/文件名
+      if (contentStr.trim().indexOf('::') === 0) {
+        tweeSource += contentStr + "\n\n";
       } else {
         var tags = (p.tags && p.tags.length) ? " [" + p.tags.join(' ') + "]" : '';
-        tweeSource += ":: " + p.name + tags + "\n" + processedContent + "\n\n";
+        tweeSource += ":: " + p.name + tags + "\n" + contentStr + "\n\n";
       }
     });
     
@@ -133,12 +119,31 @@ export function useFileActions(db, stories, allPassages, currentStoryId, assets)
     }
   };
 
-  // 1. 处理头部 (顶级脚本压缩)
+  // 1. 构建资源映射表（文件名 -> Blob URL）
+  let assetMapScript = '';
+  if (isPreview) {
+    const assetList = (assets && assets.value) ? assets.value : [];
+    const assetMap = {};
+    assetList.forEach(a => { assetMap[a.name] = a.url; });
+    assetMapScript = `<script>window.__ASSET_MAP__=${JSON.stringify(assetMap)};</script>`;
+  }
+
+  // 2. 注入拦截脚本（仅预览时）
+  let interceptorScript = '';
+  if (isPreview) {
+    interceptorScript = `<script>${interceptorRaw}</script>`;
+  }
+
+  // 3. 处理头部 (顶级脚本压缩)
   const minifiedTop = await doMinify(extra.topScript);
   const topScriptTag = minifiedTop ? `<script>${minifiedTop}</script>` : '';
   
+  // 资源拦截器必须最先执行，放在 <head> 开头
+  if (assetMapScript || interceptorScript) {
+    finalHtml = finalHtml.replace('<head>', '<head>' + assetMapScript + interceptorScript);
+  }
+
   const { styles, scripts: cdnScripts } = buildResourceTags(extra.cdns);
-  // 把 CDN 标签之间的换行也顺手干掉波
   const headAssets = (topScriptTag + styles + cdnScripts).replace(/>\s+</g, '><');
 
   if (headAssets.trim()) {
@@ -391,11 +396,11 @@ export function useFileActions(db, stories, allPassages, currentStoryId, assets)
 
     if (type === 'single') {
       var res = storyTitle + storyData;
-      currentStoryFiles.forEach(function(f) { res += processAssetLinks(f.content.trim(), false) + "\n\n"; });
+      currentStoryFiles.forEach(function(f) { res += f.content.trim() + "\n\n"; });
       downloadBlob(new Blob([res]), currentStoryName + ".twee");
     } else {
       currentStoryFiles.forEach(function(f) {
-        var body = processAssetLinks(f.content.trim(), false);
+        var body = f.content.trim();
         var path = f.folder ? "passages/" + f.folder + "/" + f.name + ".twee" : "passages/" + f.name + ".twee";
         zip.file(path, body + "\n\n");
       });

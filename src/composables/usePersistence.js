@@ -98,7 +98,7 @@ export function usePersistence(dbRef, stories, allPassages, assets) {
       await db.put('assets', assetData); // 把改好名字的塞回去波
     }
 
-    // 也要更新界面上的列表喵，这样 @{文件名} 引用才能即时刷新
+    // 也要更新界面上的列表喵，这样 assets/文件名 引用才能即时刷新
     const idx = assets.value.findIndex(a => a.id === id);
     if (idx !== -1) {
       assets.value[idx].name = newName;
