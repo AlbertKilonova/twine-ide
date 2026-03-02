@@ -29,6 +29,7 @@
     "codemirror": "^6.0.2",
     "idb": "^8.0.3",
     "jszip": "^3.10.1",
+    "terser": "^5.46.0",
     "tweers-core": "file:tweers-core",
     "v-network-graph": "^0.9.22",
     "vant": "^4.9.22",

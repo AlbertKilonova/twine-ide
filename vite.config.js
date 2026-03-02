@@ -31,7 +31,7 @@ export default defineConfig({
             registerType: 'autoUpdate',
             includeAssets: ['favicon.svg', 'pwa.png', 'pwa-maskable.png'],
             manifest: {
-                name: "Apo's TwineIDE",
+                name: "TwineIDE",
                 short_name: "TwineIDE",
                 description: "一个用于Twee的编辑器",
                 start_url: "./index.html",

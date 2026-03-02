@@ -1,5 +1,6 @@
 import { showToast, showLoadingToast, closeToast } from 'vant'; 
 import JSZip from 'jszip';
+import { minify } from 'terser';
 
 export function useFileActions(db, stories, allPassages, currentStoryId, assets) {
   
@@ -40,6 +41,30 @@ export function useFileActions(db, stories, allPassages, currentStoryId, assets)
       return isPreview ? asset.url : "assets/" + fileName;
     });
   };
+  
+  // 这是一个专门用来把 URL 数组转换成 HTML 标签字符串的内部魔法波
+  const buildResourceTags = (cdns) => {
+    if (!cdns || !Array.isArray(cdns)) return { styles: '', scripts: '' };
+    
+    let styles = '';
+    let scripts = '';
+   
+    cdns.forEach(url => {
+      if (!url || !url.trim()) return;
+        
+      const cleanUrl = url.split('?')[0].split('#')[0].toLowerCase();
+      // 再次祭出阿波的类型识别大法喵！
+      const isCSS = cleanUrl.endsWith('.css') || cleanUrl.includes('.css/');
+    
+      if (isCSS) {
+        styles += `    <link rel="stylesheet" href="${url}">\n`;
+      } else {
+        // 这里的脚本不加 async，保证按波波填写的顺序执行波
+        scripts += `    <script src="${url}"></script>\n`;
+      }
+    });
+    return { styles, scripts };
+  };
 
   // --- 核心编译引擎 ---
   const _coreBuild = async function(story, passages, formatMgr, isDebug, isPreview, isBase64, base64Map) {
@@ -76,11 +101,80 @@ export function useFileActions(db, stories, allPassages, currentStoryId, assets)
     var id = (story.format || "").toLowerCase() + "-" + (story.formatVersion || "");
     var rawFormatCode = await formatMgr.getRawCode(id);
     var mod = await import('tweers-core');
-    return mod.build({
+    const buildResult = await mod.build({
       sources: [{ type: 'text', name: 'compile.tw', content: tweeSource }],
       format_info: { name: story.format, version: story.formatVersion, source: rawFormatCode },
       is_debug: !!isDebug
     });
+
+    const extra = story.extraScripts || {};
+  let finalHtml = buildResult.html;
+
+  // 这是阿波的 Terser 压缩魔法机波！
+  const doMinify = async (code) => {
+    if (!code || !code.trim()) return '';
+    try {
+      const result = await minify(code, {
+        compress: {
+          dead_code: true,
+          drop_console: false, // 如果波波想删掉 console.log 可以改成 true 波
+          passes: 2
+        },
+        format: {
+          comments: false, // 这行就是用来杀掉所有注释的波！
+          beautify: false  // 绝对不美化，就要挤在一起喵
+        },
+        mangle: false // 暂时不混淆变量名，防止波波的代码引用出问题喵
+      });
+      return result.code || code;
+    } catch (e) {
+      console.warn('Terser 压缩失败了喵，可能是代码有语法错误:', e);
+      return code; // 失败了就原样返回，不让波波的故事卡死波
+    }
+  };
+
+  // 1. 处理头部 (顶级脚本压缩)
+  const minifiedTop = await doMinify(extra.topScript);
+  const topScriptTag = minifiedTop ? `<script>${minifiedTop}</script>` : '';
+  
+  const { styles, scripts: cdnScripts } = buildResourceTags(extra.cdns);
+  // 把 CDN 标签之间的换行也顺手干掉波
+  const headAssets = (topScriptTag + styles + cdnScripts).replace(/>\s+</g, '><');
+
+  if (headAssets.trim()) {
+    const metaMatch = finalHtml.match(/<meta[^>]*>/g);
+    if (metaMatch) {
+      const lastMeta = metaMatch[metaMatch.length - 1];
+      finalHtml = finalHtml.replace(lastMeta, lastMeta + headAssets);
+    } else {
+      finalHtml = finalHtml.replace('<head>', '<head>' + headAssets);
+    }
+  }
+
+  // 2. 处理尾部 (footerScripts 数组循环压缩)
+  let bottomInjection = '';
+  if (Array.isArray(extra.footerScripts)) {
+    // 波波你看！阿波用 map 和 Promise.all 保证顺序，而且每个都是独立的波！
+    const minifiedFooters = await Promise.all(
+      extra.footerScripts.map(async (s) => {
+        if (!s.content) return '';
+        const mini = await doMinify(s.content);
+        return `<script>${mini}</script>`;
+      })
+    );
+    bottomInjection = minifiedFooters.join('');
+  }
+
+  // 3. 最后的注入
+  if (bottomInjection) {
+    if (finalHtml.toLowerCase().includes('</body>')) {
+      finalHtml = finalHtml.replace(/<\/body>/i, bottomInjection + '</body>');
+    } else {
+      finalHtml += bottomInjection;
+    }
+  }
+
+    return { ...buildResult, html: finalHtml };
   };
 
   // --- Twee 解析器 ---
