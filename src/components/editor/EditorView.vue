@@ -21,7 +21,7 @@ import { undo, redo } from '@codemirror/commands';
 import { EditorView, lineNumbers } from '@codemirror/view';
 
 // 引入高亮三件套和我们的 Twee 喵
-import { twee } from '../utils/twee-syntax';
+import { twee } from '@/utils/tweeSyntax';
 import { javascript } from '@codemirror/lang-javascript';
 import { css } from '@codemirror/lang-css';
 

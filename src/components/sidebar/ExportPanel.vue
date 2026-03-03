@@ -17,10 +17,10 @@
 
       <section class="action-section">
         <div class="section-title">编译</div>
-        <van-button block size="small" icon="certificate" class="vscode-btn" @click="$emit('build')">
+        <van-button block size="small" icon="certificate" class="vscode-btn" @click="handleBuild">
           构建 HTML (Build)
         </van-button>
-        <van-button block size="small" icon="shield-check" class="vscode-btn primary" @click="$emit('buildSingle')">
+        <van-button block size="small" icon="shield-check" class="vscode-btn primary" @click="handleBuildSingle">
           构建单文件 HTML (内嵌资源)
         </van-button>
         <p class="build-tip">将使用项目管理页设置的格式进行编译~</p>
@@ -29,10 +29,10 @@
       <section class="action-section">
         <div class="section-title">分发</div>
         <div class="button-stack">
-          <van-button block size="small" icon="records-o" class="vscode-btn secondary" @click="$emit('doExport', 'single')">
+          <van-button block size="small" icon="records-o" class="vscode-btn secondary" @click="handleExport('single')">
             导出 .twee 源码
           </van-button>
-          <van-button block size="small" icon="cluster-o" class="vscode-btn secondary" @click="$emit('doExport', 'zip')">
+          <van-button block size="small" icon="cluster-o" class="vscode-btn secondary" @click="handleExport('zip')">
             打包工程 (.zip)
           </van-button>
         </div>
@@ -40,6 +40,39 @@
     </div>
   </div>
 </template>
+
+<script setup>
+import { computed } from 'vue';
+import { useAppContext } from '@/core/AppContext';
+
+const emit = defineEmits(['preview', 'test']);
+
+const ctx = useAppContext();
+const fileActions = ctx.get('fileActions');
+const formatMgr = ctx.get('formatManager');
+const stories = ctx.get('stories');
+const allPassages = ctx.get('allPassages');
+const currentStoryId = ctx.get('currentStoryId');
+
+const currentStory = computed(() => stories.value?.find(s => s.id === currentStoryId?.value));
+const currentStoryName = computed(() => currentStory.value?.name || '未选择');
+const currentStoryFiles = computed(() => allPassages.value?.filter(p => p.storyId === currentStoryId?.value) || []);
+
+const handleBuild = () => {
+  if (!fileActions) return;
+  fileActions.handleBuild(currentStory.value, currentStoryFiles.value, formatMgr);
+};
+
+const handleBuildSingle = () => {
+  if (!fileActions) return;
+  fileActions.handleBuildSingleFile(currentStory.value, currentStoryFiles.value, formatMgr);
+};
+
+const handleExport = (type) => {
+  if (!fileActions) return;
+  fileActions.handleExport(type, currentStoryName.value, currentStory.value, currentStoryFiles.value);
+};
+</script>
 
 <style scoped>
 .export-panel { height: 100%; background: #252526; color: #ccc; }

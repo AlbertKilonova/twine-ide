@@ -4,37 +4,17 @@
 
     <transition name="side-slide">
       <aside class="side-nav-box" v-show="isSidebarOpen && viewMode !== 'visual'">
-        <SideBarList 
-          v-if="viewMode === 'files' || viewMode === 'stories'"
-          :title="viewMode === 'files' ? '段落' : '故事'"
-          :icon="viewMode === 'files' ? 'notes-o' : 'label-o'"
-          :items="viewMode === 'files' ? currentStoryFiles : stories"
-          :folders="currentFolders"
-          :activeId="viewMode === 'files' ? currentFileId : currentStoryId"
-          @select="handleSelect" @add="handleAdd" @addFolder="handleAddFolder"
-          @updateItem="handleUpdateItem" @deleteItem="handleDeleteItem"
-          @deleteFolder="handleDeleteFolder" @deleteStory="handleDeleteStory"
-          @renameItem="handleRenameItem" @renameFolder="handleRenameFolder"
-          @renameStory="handleRenameStory" @setStart="handleSetStart"
+        <SideBarList
+          v-if="viewMode === 'files'"
           @importStory="handleImportFile"
         />
-        <ExportPanel v-if="viewMode === 'export'" :storyName="currentStoryName" :count="currentStoryFiles.length" @preview="preview" @test="test" @build="handleBuild" @buildSingle="handleBuildSingle" @doExport="handleExport" />
+        <ExportPanel v-if="viewMode === 'export'" @preview="preview" @test="test" />
         <ProjectSettings 
           :key="currentStory?.id"
           v-if="viewMode === 'project'" 
-          :story="currentStory" 
-          :count="currentStoryFiles.length"
-          :formatMgr="formatMgr" 
-          @saveOnly="saveNow"  
-          @update="handleRenameStory" 
         />
-        <AssetManager 
-          v-if="viewMode === 'assets'" 
-          :assets="assets"
-          @upload="handleAssetUpload"
-          @delete="removeAsset"
-          @rename="handleAssetRename"
-        />
+        <AssetManager v-if="viewMode === 'assets'" />
+        <PackageManager v-if="viewMode === 'packages'" />
       </aside>
     </transition>
 
@@ -70,7 +50,7 @@
       <van-empty v-else description="选择一个段落开始编辑" />
       
       <transition name="van-fade">
-        <VisualMap v-if="viewMode === 'visual'" :passages="currentStoryFiles" :activeId="currentFileId" @close="viewMode = 'files'" @jump="handleJump" @updatePosition="handleUpdateItem" />
+        <VisualMap v-if="viewMode === 'visual'" :passages="currentStoryFiles" :activeId="currentFileId" @close="viewMode = 'files'" @jump="handleJump" @updatePosition="storyMgr.handleUpdateItem" />
       </transition>
       <div v-if="isPreviewOpen" class="apk-preview-overlay">
         <div class="preview-header">
@@ -89,51 +69,37 @@ import { showToast } from 'vant';
 
 // 组件与锦囊
 import ActivityBar from './components/ActivityBar.vue';
-import SideBarList from './components/SideBarList.vue';
-import ExportPanel from './components/ExportPanel.vue';
-import EditorTools from './components/EditorTools.vue';
-import EditorView from './components/EditorView.vue';
+import SideBarList from './components/sidebar/SideBarList.vue';
+import ExportPanel from './components/sidebar/ExportPanel.vue';
+import EditorTools from './components/editor/EditorTools.vue';
+import EditorView from './components/editor/EditorView.vue';
 import VisualMap from './components/VisualMap.vue';
-import ProjectSettings from './components/ProjectSettings.vue';
-import AssetManager from './components/AssetManager.vue';
+import ProjectSettings from './components/sidebar/ProjectSettings.vue';
+import AssetManager from './components/sidebar/AssetManager.vue';
+import PackageManager from './components/sidebar/PackageManager.vue';
 
 import { initDB } from './db/index';
-import { useStoryManager } from './composables/useStoryManager';
-import { useFileActions } from './composables/useFileActions';
 import { useEditorBridge } from './composables/useEditorBridge';
 import { unescapeHeader as unescapeTwee, escapeHeader as escapeTwee } from './utils/tweeUtils';
-import { useFormatManager } from './composables/useFormatManager';
-import { usePersistence } from './composables/usePersistence';
+import { ServiceContainer } from './core/ServiceContainer';
+import { createAppContext, provideAppContext } from './core/AppContext';
+import StoryPlugin from './plugins/StoryPlugin';
+import AssetPlugin from './plugins/AssetPlugin';
+import PackagePlugin from './plugins/PackagePlugin';
+import FileActionsPlugin from './plugins/FileActionsPlugin';
+import FormatPlugin from './plugins/FormatPlugin';
 
 // 状态
 const viewMode = ref('files');
 const isSidebarOpen = ref(true);
-const stories = ref([]);
-const allPassages = ref([]);
-const currentStoryId = ref(null);
-const currentFileId = ref(null);
-const currentStoryAssets = computed(() => assets.value.filter(a => a.storyId === currentStoryId.value));
 const editorViewRef = ref(null);
 const previewUrl = ref('');
 const isPreviewOpen = ref(false);
-const assets = ref([]);
 const db = ref(null);
 
-const { syncAsset, removeAsset, renameAsset, loadAssets } = usePersistence(db, stories, allPassages, assets);
-
-watch(currentStoryId, async (newId) => {
-  if (newId) {
-    // 只要故事 ID 变了，阿波就去数据库里只捞这个 ID 的资源波！
-    await loadAssets(newId);
-  } else {
-    // 如果没有选中的故事，就把列表清空喵
-    assets.value = [];
-  }
-}, { immediate: true });
-
-const dbIntf = { 
+// dbIntf 封装（db.value 初始为 null，onMounted 后赋值）
+const dbIntf = {
   getAll: (s) => db.value?.getAll(s),
-  putItem: (s, i) => db.value?.put(s, i),
   put: (s, i) => {
     if (!db.value) { showToast('数据库还没准备好哦 awa'); return; }
     return db.value.put(s, i);
@@ -148,10 +114,43 @@ const dbIntf = {
   }
 };
 
-const formatMgr = useFormatManager(dbIntf);
-const storyMgr = useStoryManager(stories, allPassages, currentStoryId, currentFileId, dbIntf);
-const fileActions = useFileActions(dbIntf, stories, allPassages, currentStoryId, assets);
-const activeFile = computed(() => allPassages.value.find(p => p.id === currentFileId.value));
+// Service container
+const container = new ServiceContainer();
+const context = createAppContext(container);
+provideAppContext(context);
+
+// 注册核心服务（同步，dbIntf 已处理 db.value 为 null 的情况）
+container.register('db', () => dbIntf);
+[StoryPlugin, AssetPlugin, PackagePlugin, FormatPlugin, FileActionsPlugin]
+  .forEach(plugin => container.installPlugin(plugin));
+
+// 获取服务实例（同步）
+const storyMgr = context.get('storyManager');
+const assetService = context.get('assetService');
+const packageService = context.get('packageManager');
+const fileActions = context.get('fileActions');
+const formatMgr = context.get('formatManager');
+
+// 获取 reactive refs（同步，保证 computed 能追踪依赖）
+const stories = context.get('stories');
+const allPassages = context.get('allPassages');
+const currentStoryId = context.get('currentStoryId');
+const currentFileId = context.get('currentFileId');
+
+watch(() => currentStoryId?.value, async (newId) => {
+  if (newId) {
+    localStorage.setItem('twine_lastStoryId', newId);
+    await assetService.loadAssets(newId);
+    await packageService.loadPackages(newId);
+  }
+}, { immediate: false });
+
+watch(() => currentFileId?.value, (newId) => {
+  if (newId) localStorage.setItem('twine_lastFileId', newId);
+});
+const activeFile = computed(() => allPassages?.value?.find(p => p.id === currentFileId?.value));
+
+// editorBridge（同步初始化，activeFile 和 storyMgr 已可用）
 const { syncData, currentPassageTags, addTag, removeTag } = useEditorBridge(activeFile, storyMgr.handleUpdateItem, unescapeTwee, escapeTwee);
 
 onMounted(async () => {
@@ -166,50 +165,38 @@ onMounted(async () => {
 
   const instance = await initDB();
   db.value = instance;
-  await loadAssets();
-  
-  stories.value = await instance.getAll('stories');
-  allPassages.value = await instance.getAll('passages');
-  if (stories.value.length > 0) currentStoryId.value = stories.value[0].id;
+
+  // 扫描可用故事格式
+  await formatMgr.scanFormats();
+
+  // 加载数据
+  const storyRepo = context.get('storyRepo');
+  const passageRepo = context.get('passageRepo');
+  stories.value = await storyRepo.getAll();
+  allPassages.value = await passageRepo.getAll();
+
+  const savedStoryId = localStorage.getItem('twine_lastStoryId');
+  const savedFileId = localStorage.getItem('twine_lastFileId');
+  if (savedStoryId && stories.value.some(s => s.id === savedStoryId)) {
+    currentStoryId.value = savedStoryId;
+    if (savedFileId && allPassages.value.some(p => p.id === savedFileId && p.storyId === savedStoryId)) {
+      currentFileId.value = savedFileId;
+    }
+  } else if (stories.value.length > 0) {
+    currentStoryId.value = stories.value[0].id;
+  }
 });
 
-// 计算属性映射
-const currentStory = computed(() => stories.value.find(s => s.id === currentStoryId.value));
+// 计算属性
+const currentStory = computed(() => stories?.value?.find(s => s.id === currentStoryId?.value));
 const currentStoryName = computed(() => currentStory.value?.name || '未选择');
-const currentStoryFiles = computed(() => allPassages.value.filter(p => p.storyId === currentStoryId.value));
-const currentFolders = computed(() => currentStory.value?.folders || []);
+const currentStoryFiles = computed(() => allPassages?.value?.filter(p => p.storyId === currentStoryId?.value) || []);
 
-// 逻辑映射
-const handleUpdateItem = (item) => storyMgr.handleUpdateItem(item);
-// --- App.vue 里的 handleSelect 终极版 ---
-const handleSelect = (id) => {
-  if (viewMode.value === 'stories') {
-    // 1. 让业务逻辑切换故事 ID
-    storyMgr.handleSelect(id, 'story');
-    
-    // 2. 关键：手动强制切换视图模式喵！
-    // 既然选了故事，我们要么去看文件列表('files')，要么去看项目设置('project')
-    // 阿波建议先切到文件列表，让波波能看到段落喵 awa
-    viewMode.value = 'files'; 
-    
-    console.log("阿波成功帮波波切换到故事：", id);
-    showToast(`进入故事：${currentStory.value?.name || '新世界'}`);
-  } else {
-    // 正常模式：在段落列表里选段落
-    storyMgr.handleSelect(id, 'file');
-  }
-};
-const handleAdd = () => storyMgr.handleAdd(viewMode.value, currentStoryFiles.value, fileActions.generateUUID);
-const handleRenameItem = (id) => storyMgr.handleRenameItem(id);
-const handleRenameStory = (id) => storyMgr.handleRenameStory(id);
-const handleDeleteItem = (id) => storyMgr.handleDeleteItem(id);
-const handleDeleteStory = (id) => storyMgr.handleDeleteStory(id);
-const handleSetStart = (id) => storyMgr.handleSetStart(id, currentStoryId.value);
-const handleAddFolder = () => storyMgr.handleAddFolder(currentStory.value);
-const handleRenameFolder = (old) => storyMgr.handleRenameFolder(old, currentStory.value);
-const handleDeleteFolder = (n) => storyMgr.handleDeleteFolder(n, currentStory.value);
-const handleExport = (type) => fileActions.handleExport(type, currentStoryName.value, currentStory.value, currentStoryFiles.value);
-const handleImportFile = () => fileActions.handleImportFile((id) => { currentStoryId.value = id; viewMode.value = 'files'; });
+// App 级别的动作（涉及 App 状态：viewMode / preview overlay）
+const handleImportFile = () => fileActions?.handleImportFile((id) => {
+  if (currentStoryId) currentStoryId.value = id;
+  viewMode.value = 'files';
+});
 
 // --- 传送逻辑 ---
 const handleJump = (id) => {
@@ -234,30 +221,18 @@ const switchMode = (mode) => {
   else { if (viewMode.value === mode) isSidebarOpen.value = !isSidebarOpen.value; else { viewMode.value = mode; isSidebarOpen.value = true; } }
 };
 const saveNow = async () => {
-  let hasSaved = false;
-
-  // 1. 如果有正在编辑的片段，存片段
-  if (activeFile.value) {
-    handleUpdateItem(activeFile.value);
-    hasSaved = true;
-  }
-
-  // 2. 【最关键的修复】如果有当前的故事，存故事设置！
-  if (currentStory.value) {
-    handleUpdateItem(currentStory.value); // 这里的 handleUpdateItem 会自动识别这是故事喵
-    hasSaved = true;
-  }
+  if (activeFile.value) storyMgr.handleUpdateItem(activeFile.value);
+  if (currentStory.value) storyMgr.handleUpdateItem(currentStory.value);
 };
 
 const preview = async () => {
-  // 运行预览逻辑
+  if (!fileActions) return;
   const url = await fileActions.handlePreview(
-    currentStory.value, 
-    currentStoryFiles.value, 
+    currentStory.value,
+    currentStoryFiles.value,
     formatMgr
   );
 
-  // 如果拿到了 url，说明 handlePreview 判断出这是 APK 环境波！
   if (url) {
     previewUrl.value = url;
     isPreviewOpen.value = true;
@@ -273,7 +248,7 @@ const closePreview = () => {
 };
 
 const test = async () => {
-  // 传 true 进去开启 Debug 模式喵
+  if (!fileActions) return;
   const url = await fileActions.handlePreview(currentStory.value, currentStoryFiles.value, formatMgr, true);
   if (url) {
     previewUrl.value = url;
@@ -281,32 +256,6 @@ const test = async () => {
   }
 };
 
-const handleBuild = () => {
-  fileActions.handleBuild(currentStory.value, currentStoryFiles.value, formatMgr);
-};
-
-const handleAssetUpload = async (file) => {
-  if (!currentStoryId.value) {
-    showToast('请先选择或创建一个故事喵！');
-    return;
-  }
-  try {
-    // 上传时带上当前故事的 ID 波
-    await syncAsset(file, currentStoryId.value);
-    showToast('上传成功喵！');
-  } catch (e) {
-    showToast('上传失败了 xwx');
-  }
-};
-
-const handleAssetRename = async (id, newName) => {
-  await renameAsset(id, newName);
-  showToast('改名成功！');
-};
-
-const handleBuildSingle = () => {
-  fileActions.handleBuildSingleFile(currentStory.value, currentStoryFiles.value, formatMgr);
-};
 
 </script>
 

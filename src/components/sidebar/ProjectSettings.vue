@@ -2,6 +2,10 @@
   <div class="side-panel-inner project-settings">
     <div class="panel-header">项目配置</div>
     
+    <div v-if="!story" class="empty-state">
+      <van-empty description="请先选择或创建一个故事喵~" />
+    </div>
+    
     <div class="panel-content scrollable" v-if="story">
       <div class="section-title">概览</div>
       <div class="info-card">
@@ -16,7 +20,7 @@
       <div class="section-title">基础信息</div>
       <div class="setting-item">
         <label>故事标题 (StoryTitle)</label>
-        <input v-model="story.name" @input="$emit('saveOnly')" class="vscode-input highlight" placeholder="输入故事名字喵..." />
+        <input v-model="story.name" @input="saveNow" class="vscode-input highlight" placeholder="输入故事名字喵..." />
       </div>
 
       <div class="setting-item">
@@ -79,319 +83,78 @@
         </div>
       </div>
       
-      <van-collapse v-model="activeNames" ghost>
-          <van-collapse-item name="scripts">
-            <template #title>
-              <div class="collapse-title">
-                <van-icon name="description-o" />
-                <span>脚本管理 (Script Injection)</span>
-              </div>
-            </template>
-        
-            <div class="script-section-box">
-              <van-collapse v-model="topScriptExpanded" ghost>
-                <van-collapse-item name="top">
-                  <template #title>
-                    <div class="sub-label blue-text">顶级脚本 (Head Top)</div>
-                  </template>
-                  <div class="desc-text">插入在 head 标签最顶部，在所有 CDN 库之前运行波。</div>
-                  <MiniEditor 
-                    v-model="safeScripts.topScript" 
-                    :settings="story.settings"
-                    @change="$emit('saveOnly')" 
-                  />
-                </van-collapse-item>
-              </van-collapse>
-        
-              <div class="divider-line mini"></div>
-        
-              <div class="sub-label blue-text">CDN 资源库 (External Assets)</div>
-                <div class="desc-text">粘贴链接后，阿波会自动帮你识别库的名字和版本喵。</div>
-                
-                <div class="cdn-list">
-                  <div v-for="(url, index) in safeScripts.cdns" :key="'cdn'+index" class="cdn-card">
-                    <div class="cdn-info">
-                      <van-icon name="points" class="drag-handle" />
-                      <div class="cdn-meta">
-                        <span class="lib-name">{{ identifyLib(url).name }}</span>
-                        <span class="lib-ver" v-if="identifyLib(url).version">{{ identifyLib(url).version }}</span>
-                      </div>
-                      <van-icon name="clear" class="delete-icon-mini" @click="safeScripts.cdns.splice(index, 1); $emit('saveOnly')" />
-                    </div>
-                    <input 
-                      v-model="safeScripts.cdns[index]" 
-                      placeholder="粘贴 CDN 链接波..." 
-                      class="cdn-input-field"
-                      @input="$emit('saveOnly')"
-                    />
-                  </div>
-                </div>
-                
-                <van-button size="mini" block icon="plus" class="add-btn-outline" @click="safeScripts.cdns.push(''); $emit('saveOnly')">
-                  添加外部资源
-                </van-button>
-        
-              <div class="divider-line mini"></div>
-        
-              <div class="sub-label blue-text">尾部脚本 (Body End)</div>
-              <div class="desc-text">会按顺序插入到 body 标签末尾波。</div>
-              
-              <div v-for="(s, index) in safeScripts.footerScripts" :key="'fs'+index" class="script-card-box">
-                <van-collapse v-model="s.isExpanded" ghost>
-                  <van-collapse-item name="expanded">
-                    <template #title>
-                      <div class="card-top" @click.stop>
-                        <input v-model="s.name" placeholder="脚本名称" class="card-name-input" @input="$emit('saveOnly')" />
-                        <van-icon name="delete-o" class="delete-icon" @click="safeScripts.footerScripts.splice(index, 1); $emit('saveOnly')" />
-                      </div>
-                    </template>
-                    <MiniEditor 
-                      v-model="s.content" 
-                      :settings="story.settings"
-                      @change="$emit('saveOnly')" 
-                    />
-                  </van-collapse-item>
-                </van-collapse>
-              </div>
-              
-              <van-button size="mini" block icon="plus" class="add-btn-dark" @click="addFooterScript">
-                添加自定义脚本
-              </van-button>
-            </div>
-          </van-collapse-item>
-        </van-collapse>
     </div>
   </div>
 </template>
 
 <script setup>
-import MiniEditor from './MiniEditor.vue';
 import { ref, onMounted, computed, watch } from 'vue';
+import { useAppContext } from '@/core/AppContext';
 
-const props = defineProps(['story', 'count', 'formatMgr']);
-const emit = defineEmits(['saveOnly']);
+const ctx = useAppContext();
+const storyMgr = ctx.get('storyManager');
+const formatMgr = ctx.get('formatManager');
+const stories = ctx.get('stories');
+const allPassages = ctx.get('allPassages');
+const currentStoryId = ctx.get('currentStoryId');
+
+const story = computed(() => stories.value?.find(s => s.id === currentStoryId?.value));
+const count = computed(() => allPassages.value?.filter(p => p.storyId === currentStoryId?.value)?.length || 0);
 
 const selectedFormatKey = ref('');
-const activeNames = ref([]);
-const topScriptExpanded = ref(['top']); // 默认展开顶级脚本波
-
-const addFooterScript = () => {
-  safeScripts.value.footerScripts.push({
-    name: '新脚本',
-    content: '',
-    isExpanded: ['expanded'] // 新加的默认展开喵
-  });
-  emit('saveOnly');
-};
-
-// 脚本存储初始化逻辑喵！
-const safeScripts = computed(() => {
-  if (!props.story.extraScripts) {
-    props.story.extraScripts = { topScript: "", cdns: [], footerScripts: [] };
-  }
-  return props.story.extraScripts;
-});
+const formatInput = ref(null);
 
 const displayFormats = computed(() => {
-  return props.formatMgr?.availableFormats.value || [];
+  return formatMgr?.availableFormats.value || [];
 });
 
+const saveNow = () => {
+  if (story.value) storyMgr.handleUpdateItem(story.value);
+};
+
 onMounted(async () => {
-  if (props.formatMgr) {
-    await props.formatMgr.scanFormats();
-    if (props.story) {
-      selectedFormatKey.value = `${props.story.format.toLowerCase()}-${props.story.formatVersion}`;
+  if (formatMgr) {
+    await formatMgr.scanFormats();
+    if (story.value) {
+      selectedFormatKey.value = `${story.value.format.toLowerCase()}-${story.value.formatVersion}`;
     }
   }
 });
 
 watch(displayFormats, (newList) => {
-  if (newList.length > 0 && props.story && !selectedFormatKey.value) {
-    selectedFormatKey.value = `${props.story.format.toLowerCase()}-${props.story.formatVersion}`;
+  if (newList.length > 0 && story.value && !selectedFormatKey.value) {
+    selectedFormatKey.value = `${story.value.format.toLowerCase()}-${story.value.formatVersion}`;
   }
 }, { immediate: true });
 
 const handleFormatChange = () => {
   const target = displayFormats.value.find(f => f.id === selectedFormatKey.value);
-  if (target) {
-    props.story.format = target.name;
-    props.story.formatVersion = target.version;
-    emit('saveOnly');
+  if (target && story.value) {
+    story.value.format = target.name;
+    story.value.formatVersion = target.version;
+    saveNow();
   }
 };
 
 const onFormatFileChange = async (e) => {
   const file = e.target.files[0];
-  if (file && props.formatMgr) {
-    await props.formatMgr.uploadFormat(file);
+  if (file && formatMgr) {
+    await formatMgr.uploadFormat(file);
     e.target.value = ''; 
   }
 };
 
 const regenIFID = () => {
-  props.story.ifid = 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, c => (c === 'x' ? Math.random() * 16 | 0 : (Math.random() * 16 | 0 & 0x3 | 0x8)).toString(16));
-  emit('saveOnly');
+  if (!story.value) return;
+  story.value.ifid = 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, c => (c === 'x' ? Math.random() * 16 | 0 : (Math.random() * 16 | 0 & 0x3 | 0x8)).toString(16));
+  saveNow();
 };
 
 const updateSetting = (key, value) => {
-  if (!props.story.settings) props.story.settings = {};
-  props.story.settings[key] = value;
-  emit('saveOnly');
-};
-
-const identifyLib = (url) => {
-  if (!url || typeof url !== 'string') {
-    return { name: '新资源库', version: '' };
-  }
-
-  try {
-    // 清理URL
-    const cleanUrl = url.split('?')[0].split('#')[0];
-    let name = '';
-    let version = '';
-
-    // 1. 尝试从URL中提取@版本格式
-    if (cleanUrl.includes('@')) {
-      const urlParts = cleanUrl.split('/');
-      
-      for (let i = 0; i < urlParts.length; i++) {
-        const part = urlParts[i];
-        if (part.includes('@')) {
-          const atIndex = part.lastIndexOf('@');
-          const beforeAt = part.substring(0, atIndex);
-          const afterAt = part.substring(atIndex + 1);
-          
-          // 处理作用域包 (@angular/core)
-          if (i > 0 && urlParts[i-1] && urlParts[i-1].startsWith('@')) {
-            name = `${urlParts[i-1]}/${beforeAt}`;
-          } else {
-            name = beforeAt || part.substring(0, atIndex);
-          }
-          
-          version = afterAt;
-          break;
-        }
-      }
-    }
-
-    // 2. 尝试从路径中提取版本号
-    if (!version) {
-      const pathParts = cleanUrl.split('/');
-      
-      // 查找版本号模式 (x.x.x 或 x.x)
-      for (let i = 0; i < pathParts.length; i++) {
-        const versionMatch = pathParts[i].match(/^(\d+\.\d+(?:\.\d+)?(?:-[a-z0-9.-]+)?)$/i);
-        if (versionMatch) {
-          version = versionMatch[1];
-          // 版本号前一个部分很可能是包名
-          if (i > 0) {
-            // 处理作用域包
-            if (pathParts[i-1] && urlParts[i-1].startsWith('@') && i-2 >= 0) {
-              name = `${urlParts[i-2]}/${urlParts[i-1]}`;
-            } else {
-              name = pathParts[i-1];
-            }
-          }
-          break;
-        }
-      }
-    }
-
-    // 3. 从文件名中提取
-    if (!name || !version) {
-      const fileName = cleanUrl.split('/').pop() || '';
-      
-      // 从文件名中匹配版本号
-      const versionMatch = fileName.match(/(\d+\.\d+(?:\.\d+)?(?:-[a-z0-9.-]+)?)/i);
-      if (versionMatch) {
-        if (!version) version = versionMatch[1];
-        
-        if (!name) {
-          // 从文件名中提取库名（排除版本号）
-          name = fileName
-            .replace(new RegExp(`[-_.]?${versionMatch[1]}[-_.]?`, 'i'), '')  // 移除版本号及其周围分隔符
-            .replace(/\.(min|js|css|bundle|global|umd|esm|cjs|production|development)\.?(min)?$/gi, '')  // 移除扩展名
-            .replace(/^[-_.]+|[-_.]+$/g, '');  // 清理前后分隔符
-        }
-      } else if (!name) {
-        // 没有版本号，只清理文件名
-        name = fileName
-          .replace(/\.(min|js|css|bundle|global|umd|esm|cjs|production|development)\.?(min)?$/gi, '')
-          .replace(/^[-_.]+|[-_.]+$/g, '');
-      }
-    }
-
-    // 4. 格式化结果
-    if (name) {
-      // 处理特殊情况
-      if (name === '' || name === 'dist' || name === 'lib') {
-        // 尝试从URL中获取有意义的名称
-        const pathParts = cleanUrl.split('/');
-        for (let i = pathParts.length - 2; i >= 0; i--) {
-          if (pathParts[i] && !pathParts[i].match(/^\d/) && 
-              !['dist', 'lib', 'umd', 'esm', 'cjs', 'bundles'].includes(pathParts[i].toLowerCase())) {
-            name = pathParts[i];
-            break;
-          }
-        }
-      }
-      
-      // 清理和格式化名称
-      name = name
-        .split('/').pop()  // 取最后一部分
-        .replace(/^[-_.]+|[-_.]+$/g, '')  // 移除前后的分隔符
-        .toLowerCase()
-        .replace(/(?:^|\s|-|_|\.)\w/g, char => char.toUpperCase())  // 每个单词首字母大写
-        .replace(/-/g, '');  // 移除连字符
-      
-      // 特殊处理常见库名
-      const libMap = {
-        'Jquery': 'jQuery',
-        'React': 'React',
-        'Reactdom': 'ReactDOM',
-        'Vue': 'Vue',
-        'Angular': 'Angular',
-        'Axios': 'Axios',
-        'Lodash': 'Lodash',
-        'Moment': 'Moment.js',
-        'Bootstrap': 'Bootstrap',
-        'Tailwindcss': 'Tailwind CSS',
-        'Chart': 'Chart.js',
-        'D3': 'D3.js',
-        'Three': 'Three.js',
-        'Popper': 'Popper.js',
-        'Swiper': 'Swiper',
-        'Alpine': 'Alpine.js',
-        'Uuid': 'UUID'
-      };
-      
-      name = libMap[name] || name;
-      
-      // 如果名字以.min结尾，去掉它
-      if (name.toLowerCase().endsWith('.min')) {
-        name = name.substring(0, name.length - 4);
-      }
-      
-      // 如果名字以.js/.css结尾，去掉扩展名
-      name = name.replace(/\.(js|css)$/i, '');
-    } else {
-      name = '新资源库';
-    }
-    
-    // 格式化版本号
-    if (version && !version.startsWith('v')) {
-      version = 'v' + version;
-    }
-
-    return { 
-      name: name || '新资源库', 
-      version: version || ''
-    };
-    
-  } catch (error) {
-    console.warn('CDN识别失败:', error, url);
-    return { name: '新资源库', version: '' };
-  }
+  if (!story.value) return;
+  if (!story.value.settings) story.value.settings = {};
+  story.value.settings[key] = value;
+  saveNow();
 };
 
 </script>
@@ -400,6 +163,13 @@ const identifyLib = (url) => {
 /* 保持波波原来的所有样式波！ */
 .project-settings { height: 100%; background: #252526; color: #cccccc; display: flex; flex-direction: column; }
 .panel-header { padding: 10px 15px; font-size: 11px; text-transform: uppercase; color: #858585; border-bottom: 1px solid rgba(255,255,255,0.05); }
+.empty-state { 
+  flex: 1; 
+  display: flex; 
+  align-items: center; 
+  justify-content: center; 
+  padding: 40px 20px;
+}
 .panel-content { flex: 1; overflow-y: auto; padding: 20px 15px; display: flex; flex-direction: column; gap: 20px; }
 .scrollable::-webkit-scrollbar { width: 4px; }
 .scrollable::-webkit-scrollbar-thumb { background: #333; border-radius: 2px; }
@@ -596,6 +366,51 @@ const identifyLib = (url) => {
 /* 移除折叠标题栏自带的底线波 */
 :deep(.van-cell__title) {
   border: none !important;
+}
+
+/* 包安装输入区域喵 */
+.pkg-install-area {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 12px;
+  align-items: center;
+}
+
+.pkg-input {
+  flex: 1;
+  background: #1e1e1e !important;
+  border: 1px solid #3c3c3c !important;
+  border-radius: 4px;
+  padding: 8px 10px;
+  color: #d4d4d4;
+  font-size: 12px;
+  font-family: 'Consolas', 'Monaco', monospace;
+}
+
+.pkg-input:focus {
+  outline: none;
+  border-color: #007acc !important;
+}
+
+.install-btn {
+  background: #0e639c;
+  border: none;
+  border-radius: 4px;
+  padding: 8px 12px;
+  color: #fff;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.2s;
+}
+
+.install-btn:hover {
+  background: #1177bb;
+}
+
+.install-btn:active {
+  background: #0d5a8f;
 }
 
 /* CDN 卡片美化喵 */

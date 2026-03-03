@@ -1,15 +1,16 @@
 <template>
   <div class="activity-bar">
     <div class="top-items">
-      <div :class="['nav-item', { active: activeMode === 'stories' }]" @click="$emit('switch', 'stories')">
-        <van-icon name="apps-o" /><div class="active-indicator" v-show="activeMode === 'stories'"></div>
-      </div>
       <div :class="['nav-item', { active: activeMode === 'files' }]" @click="$emit('switch', 'files')">
         <van-icon name="description" /><div class="active-indicator" v-show="activeMode === 'files'"></div>
       </div>
       <div :class="['nav-item', { active: activeMode === 'assets' }]" @click="$emit('switch', 'assets')">
         <van-icon name="photo-o" />
         <div class="active-indicator" v-show="activeMode === 'assets'"></div>
+      </div>
+      <div :class="['nav-item', { active: activeMode === 'packages' }]" @click="$emit('switch', 'packages')">
+        <van-icon name="gift-o" />
+        <div class="active-indicator" v-show="activeMode === 'packages'"></div>
       </div>
       <div :class="['nav-item', { active: activeMode === 'visual' }]" @click="$emit('switch', 'visual')">
         <van-icon name="cluster-o" /><div class="active-indicator" v-show="activeMode === 'visual'"></div>

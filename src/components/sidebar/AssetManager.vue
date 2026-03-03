@@ -24,7 +24,7 @@
           <span class="asset-name">{{ asset.name }}</span>
           <div class="asset-actions">
             <van-button size="mini" @click="handleRename(asset)">重命名</van-button>
-            <van-icon name="delete-o" class="del-btn" @click="$emit('delete', asset.id)" />
+            <van-icon name="delete-o" class="del-btn" @click="handleDelete(asset.id)" />
           </div>
         </div>
       </div>
@@ -33,20 +33,51 @@
 </template>
 
 <script setup>
-const props = defineProps(['assets']);
-const emit = defineEmits(['upload', 'delete', 'rename']);
+import { computed } from 'vue';
+import { showToast } from 'vant';
+import { useAppContext } from '@/core/AppContext';
 
-const handleUpload = (e) => {
+const ctx = useAppContext();
+const assetService = ctx.get('assetService');
+const currentStoryId = ctx.get('currentStoryId');
+
+const assets = computed(() => assetService.assets.value);
+
+const handleUpload = async (e) => {
   const files = Array.from(e.target.files);
-  files.forEach(file => emit('upload', file));
+  if (!currentStoryId.value) {
+    showToast('请先选择或创建一个故事喵！');
+    return;
+  }
+  for (const file of files) {
+    try {
+      await assetService.uploadAsset(file, currentStoryId.value);
+      showToast('上传成功喵！');
+    } catch (err) {
+      showToast(err.message || '上传失败了 xwx');
+    }
+  }
   e.target.value = '';
 };
 
-const handleRename = (asset) => {
-  // 简单的原生弹窗就足够用了波
+const handleRename = async (asset) => {
   const newName = prompt('请输入新的资源名称喵：', asset.name);
   if (newName && newName.trim() !== '' && newName !== asset.name) {
-    emit('rename', asset.id, newName.trim());
+    try {
+      await assetService.renameAsset(asset.id, newName.trim());
+      showToast('改名成功！');
+    } catch (err) {
+      showToast(err.message || '改名失败了 xwx');
+    }
+  }
+};
+
+const handleDelete = async (id) => {
+  try {
+    await assetService.removeAsset(id);
+    showToast('删除成功！');
+  } catch (err) {
+    showToast(err.message || '删除失败了 xwx');
   }
 };
 </script>

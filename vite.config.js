@@ -1,3 +1,4 @@
+import { fileURLToPath, URL } from 'node:url'
 import {
     defineConfig
 } from 'vite'
@@ -10,6 +11,11 @@ import pkg from './package.json'
 // https://vite.dev/config/
 export default defineConfig({
     base: './',
+    resolve: {
+        alias: {
+            '@': fileURLToPath(new URL('./src', import.meta.url))
+        }
+    },
     build: {
         chunkSizeWarningLimit: 1500,
     },
