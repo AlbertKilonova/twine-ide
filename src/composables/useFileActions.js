@@ -4,7 +4,7 @@ import { useBuild } from './useBuild';
 
 export function useFileActions(db, stories, allPassages, currentStoryId, assets, packages) {
 
-  const importer = useImport(db, stories, allPassages, assets);
+  const importer = useImport(db, stories, allPassages, assets, packages);
   const exporter = useExport(assets, packages, currentStoryId);
   const builder = useBuild(assets, packages);
 
