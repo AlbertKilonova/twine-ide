@@ -24,7 +24,28 @@ export class BaseRepository {
   async save(item) {
     const db = this.getDB()
     if (!db) throw new Error('数据库未初始化喵')
-    const plain = JSON.parse(JSON.stringify(item))
+    
+    // 手动克隆，保留 Blob/File 等不可序列化对象
+    const plain = {}
+    for (const key in item) {
+      if (!item.hasOwnProperty(key)) continue
+      const val = item[key]
+      
+      // 保留 Blob/File 对象
+      if (val instanceof Blob || val instanceof File) {
+        plain[key] = val
+      } else if (val !== undefined && val !== null) {
+        // 其他值尝试深拷贝
+        try {
+          plain[key] = JSON.parse(JSON.stringify(val))
+        } catch {
+          plain[key] = val
+        }
+      } else {
+        plain[key] = val
+      }
+    }
+    
     await db.put(this.storeName, plain)
     return plain
   }
