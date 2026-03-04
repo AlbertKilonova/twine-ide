@@ -21,7 +21,7 @@
           构建 HTML (Build)
         </van-button>
         <van-button block size="small" icon="shield-check" class="vscode-btn primary" @click="handleBuildSingle">
-          构建单文件 HTML (内嵌资源)
+          构建 HTML (包含资源)
         </van-button>
         <p class="build-tip">将使用项目管理页设置的格式进行编译~</p>
       </section>
