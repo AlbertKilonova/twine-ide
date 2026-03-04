@@ -3,7 +3,7 @@
     <div class="search-area">
       <input 
         v-model="searchQuery" 
-        placeholder="搜索 npm 包 (如: vue, axios, lodash)..." 
+        placeholder="搜索前端包..." 
         class="search-input"
         @input="handleSearch"
       />
@@ -245,6 +245,7 @@ const handleManualImport = async () => {
   display: flex;
   flex-direction: column;
   gap: 16px;
+  padding: 12px;
 }
 
 .search-area {
